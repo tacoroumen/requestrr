@@ -64,7 +64,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             DiscordEmbedBuilder embedBuilder = new DiscordEmbedBuilder()
                 .WithTitle(musicArtist.ArtistName)
                 .WithTimestamp(DateTime.Now)
-                .WithUrl($"https://musicbrainz.org/release/{musicArtist.ArtistId}")
+                .WithUrl($"https://musicbrainz.org/artist/{musicArtist.ArtistId}")
                 .WithFooter("Powered by Requestrr");
 
             if (!string.IsNullOrWhiteSpace(musicArtist.Overview))
