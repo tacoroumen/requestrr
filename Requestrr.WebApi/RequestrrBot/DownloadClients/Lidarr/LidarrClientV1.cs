@@ -303,6 +303,22 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
         {
             try
             {
+                if (artist == null)
+                    return Array.Empty<MusicAlbum>();
+
+                if (string.IsNullOrWhiteSpace(artist.DownloadClientId))
+                {
+                    JSONMusicArtist existingArtist = await FindExistingArtistByMusicDbIdAsync(artist.ArtistId);
+                    if (existingArtist == null)
+                    {
+                        await CreateMusicInLidarr(request, artist, false, false);
+                    }
+
+                    MusicArtist refreshedArtist = await SearchMusicForArtistIdAsync(request, artist.ArtistId);
+                    if (refreshedArtist != null)
+                        artist = refreshedArtist;
+                }
+
                 List<JSONMusicAlbum> jsonAlbums = new List<JSONMusicAlbum>();
 
                 if (!string.IsNullOrWhiteSpace(artist?.DownloadClientId))
