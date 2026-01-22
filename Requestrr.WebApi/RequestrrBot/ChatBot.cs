@@ -630,12 +630,45 @@ namespace Requestrr.WebApi.RequestrrBot
                         .HandleMusicArtistSelectionAsync(e.Values.Single().Split("/").Last());
                 }
             }
+            else if (e.Id.ToLower().StartsWith("murla"))
+            {
+                if (e.Values != null && e.Values.Any())
+                {
+                    string[] values = e.Values.Single().Split("/");
+                    int categoryId = int.Parse(values[0]);
+                    string artistId = values[1];
+                    string albumId = values[2];
+
+                    await CreateMusicRequestWorkFlow(e, categoryId)
+                        .HandleMusicAlbumSelectionAsync(artistId, albumId);
+                }
+            }
             else if (e.Id.ToLower().StartsWith("murca"))
             {
                 var categoryId = int.Parse(e.Id.Split("/").Skip(2).First());
 
                 await CreateMusicRequestWorkFlow(e, categoryId)
                     .RequestMusicArtistAsync(e.Id.Split("/").Last());
+            }
+            else if (e.Id.ToLower().StartsWith("murlp"))
+            {
+                var splitValues = e.Id.Split("/").Skip(2).ToArray();
+                var categoryId = int.Parse(splitValues[0]);
+                var artistId = splitValues[1];
+                var page = int.Parse(splitValues[2]);
+
+                await CreateMusicRequestWorkFlow(e, categoryId)
+                    .ShowMusicAlbumPageAsync(artistId, page);
+            }
+            else if (e.Id.ToLower().StartsWith("murlc"))
+            {
+                var splitValues = e.Id.Split("/").Skip(2).ToArray();
+                var categoryId = int.Parse(splitValues[0]);
+                var artistId = splitValues[1];
+                var albumId = splitValues[2];
+
+                await CreateMusicRequestWorkFlow(e, categoryId)
+                    .RequestMusicAlbumAsync(artistId, albumId);
             }
         }
 
