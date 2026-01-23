@@ -5,6 +5,7 @@ using Requestrr.WebApi.Extensions;
 using Requestrr.WebApi.RequestrrBot.Music;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -309,14 +310,16 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
                 if (string.IsNullOrWhiteSpace(artist.DownloadClientId))
                 {
                     JSONMusicArtist existingArtist = await FindExistingArtistByMusicDbIdAsync(artist.ArtistId);
-                    if (existingArtist == null)
+                    if (existingArtist != null)
                     {
-                        await CreateMusicInLidarr(request, artist, false, false);
-                    }
+                        if (!existingArtist.Id.HasValue)
+                            return Array.Empty<MusicAlbum>();
 
-                    MusicArtist refreshedArtist = await SearchMusicForArtistIdAsync(request, artist.ArtistId);
-                    if (refreshedArtist != null)
-                        artist = refreshedArtist;
+                        artist.DownloadClientId = existingArtist.Id.Value.ToString();
+                        MusicArtist refreshedArtist = await SearchMusicForArtistIdAsync(request, artist.ArtistId);
+                        if (refreshedArtist != null)
+                            artist = refreshedArtist;
+                    }
                 }
 
                 List<JSONMusicAlbum> jsonAlbums = new List<JSONMusicAlbum>();
@@ -328,22 +331,15 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
 
                     string jsonResponse = await response.Content.ReadAsStringAsync();
                     jsonAlbums = JsonConvert.DeserializeObject<List<JSONMusicAlbum>>(jsonResponse);
-                }
-                else
-                {
-                    string searchTerm = Uri.EscapeDataString($"lidarr:{artist.ArtistId}");
-                    HttpResponseMessage response = await HttpGetAsync($"{BaseURL}/album/lookup?term={searchTerm}");
-                    await response.ThrowIfNotSuccessfulAsync("LidarrAlbumLookup failed", x => x.error);
-
-                    string jsonResponse = await response.Content.ReadAsStringAsync();
-                    jsonAlbums = JsonConvert.DeserializeObject<List<JSONMusicAlbum>>(jsonResponse);
+                
+                    return jsonAlbums
+                        .Where(x => x != null && IsFullAlbum(x))
+                        .Select(x => ConvertToAlbum(x, artist))
+                        .OrderByDescending(x => x.ReleaseDate ?? DateTime.MinValue)
+                        .ToArray();
                 }
 
-                return jsonAlbums
-                    .Where(x => x != null && IsFullAlbum(x))
-                    .Select(x => ConvertToAlbum(x, artist))
-                    .OrderByDescending(x => x.ReleaseDate ?? DateTime.MinValue)
-                    .ToArray();
+                return await SearchMusicBrainzAlbumsForArtistAsync(artist);
             }
             catch (Exception ex)
             {
@@ -354,6 +350,70 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
         }
 
 
+
+        private async Task<IReadOnlyList<MusicAlbum>> SearchMusicBrainzAlbumsForArtistAsync(MusicArtist artist)
+        {
+            if (artist == null || string.IsNullOrWhiteSpace(artist.ArtistId))
+                return Array.Empty<MusicAlbum>();
+
+            const int pageSize = 100;
+            var albums = new List<MusicAlbum>();
+            int offset = 0;
+            int? totalCount = null;
+
+            try
+            {
+                while (totalCount == null || offset < totalCount.Value)
+                {
+                    string url = $"https://musicbrainz.org/ws/2/release-group?artist={artist.ArtistId}&fmt=json&limit={pageSize}&offset={offset}&type=album";
+                    MusicBrainzReleaseGroupResponse response = await FetchMusicBrainzReleaseGroupsAsync(url);
+
+                    if (response == null || response.ReleaseGroups == null || response.ReleaseGroups.Count == 0)
+                        break;
+
+                    totalCount ??= response.TotalCount;
+
+                    foreach (var releaseGroup in response.ReleaseGroups)
+                    {
+                        if (!IsFullAlbum(releaseGroup))
+                            continue;
+
+                        albums.Add(ConvertToAlbum(releaseGroup, artist));
+                    }
+
+                    if (response.ReleaseGroups.Count < pageSize)
+                        break;
+
+                    offset += pageSize;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"An error occurred while searching MusicBrainz albums for artist \"{artist.ArtistId}\": {ex.Message}");
+            }
+
+            return albums
+                .OrderByDescending(x => x.ReleaseDate ?? DateTime.MinValue)
+                .ToArray();
+        }
+
+        private async Task<MusicBrainzReleaseGroupResponse> FetchMusicBrainzReleaseGroupsAsync(string url)
+        {
+            HttpClient client = _httpClientFactory.CreateClient();
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("Accept", "application/json");
+            request.Headers.UserAgent.ParseAdd("Requestrr/2.1.9 (github.com/darkalfx/requestrr)");
+
+            using var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning($"MusicBrainz lookup failed with status {(int)response.StatusCode} ({response.ReasonPhrase}).");
+                return null;
+            }
+
+            string jsonResponse = await response.Content.ReadAsStringAsync();
+            return JsonConvert.DeserializeObject<MusicBrainzReleaseGroupResponse>(jsonResponse);
+        }
 
         private async Task<JSONMusicArtist> FindExistingArtistByMusicDbIdAsync(string artistId)
         {
@@ -475,6 +535,24 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
                 return false;
 
             if (album.SecondaryTypes != null && album.SecondaryTypes.Any(x =>
+                x.Equals("EP", StringComparison.InvariantCultureIgnoreCase) ||
+                x.Equals("Single", StringComparison.InvariantCultureIgnoreCase)))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool IsFullAlbum(MusicBrainzReleaseGroup releaseGroup)
+        {
+            if (releaseGroup == null)
+                return false;
+
+            if (!string.Equals(releaseGroup.PrimaryType, "Album", StringComparison.InvariantCultureIgnoreCase))
+                return false;
+
+            if (releaseGroup.SecondaryTypes != null && releaseGroup.SecondaryTypes.Any(x =>
                 x.Equals("EP", StringComparison.InvariantCultureIgnoreCase) ||
                 x.Equals("Single", StringComparison.InvariantCultureIgnoreCase)))
             {
@@ -729,6 +807,45 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
 
                 PosterPath = GetPosterImageUrl(jsonAlbum.Images)
             };
+        }
+
+        private MusicAlbum ConvertToAlbum(MusicBrainzReleaseGroup releaseGroup, MusicArtist fallbackArtist)
+        {
+            string artistName = releaseGroup.ArtistCredit?.FirstOrDefault()?.Name ?? fallbackArtist?.ArtistName;
+            string artistId = releaseGroup.ArtistCredit?.FirstOrDefault()?.Artist?.Id ?? fallbackArtist?.ArtistId;
+
+            return new MusicAlbum
+            {
+                DownloadClientAlbumId = null,
+                AlbumId = releaseGroup.Id,
+                AlbumTitle = releaseGroup.Title,
+                Overview = string.Empty,
+
+                ArtistId = artistId,
+                ArtistName = artistName,
+                ReleaseDate = ParseReleaseDate(releaseGroup.FirstReleaseDate),
+
+                Available = false,
+                Monitored = false,
+                Requested = false,
+
+                PosterPath = string.Empty
+            };
+        }
+
+        private DateTime? ParseReleaseDate(string releaseDate)
+        {
+            if (string.IsNullOrWhiteSpace(releaseDate))
+                return null;
+
+            string[] formats = { "yyyy-MM-dd", "yyyy-MM", "yyyy" };
+            if (DateTime.TryParseExact(releaseDate, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsed))
+                return parsed;
+
+            if (DateTime.TryParse(releaseDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out parsed))
+                return parsed;
+
+            return null;
         }
 
 
@@ -1025,6 +1142,57 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
 
             [JsonProperty("statistics")]
             public JSONAlbumStatistics Statistics { get; set; }
+        }
+
+        private class MusicBrainzReleaseGroupResponse
+        {
+            [JsonProperty("release-groups")]
+            public List<MusicBrainzReleaseGroup> ReleaseGroups { get; set; }
+
+            [JsonProperty("release-group-count")]
+            public int TotalCount { get; set; }
+
+            [JsonProperty("release-group-offset")]
+            public int Offset { get; set; }
+        }
+
+        private class MusicBrainzReleaseGroup
+        {
+            [JsonProperty("id")]
+            public string Id { get; set; }
+
+            [JsonProperty("title")]
+            public string Title { get; set; }
+
+            [JsonProperty("first-release-date")]
+            public string FirstReleaseDate { get; set; }
+
+            [JsonProperty("primary-type")]
+            public string PrimaryType { get; set; }
+
+            [JsonProperty("secondary-types")]
+            public List<string> SecondaryTypes { get; set; }
+
+            [JsonProperty("artist-credit")]
+            public List<MusicBrainzArtistCredit> ArtistCredit { get; set; }
+        }
+
+        private class MusicBrainzArtistCredit
+        {
+            [JsonProperty("name")]
+            public string Name { get; set; }
+
+            [JsonProperty("artist")]
+            public MusicBrainzArtist Artist { get; set; }
+        }
+
+        private class MusicBrainzArtist
+        {
+            [JsonProperty("id")]
+            public string Id { get; set; }
+
+            [JsonProperty("name")]
+            public string Name { get; set; }
         }
     }
 }

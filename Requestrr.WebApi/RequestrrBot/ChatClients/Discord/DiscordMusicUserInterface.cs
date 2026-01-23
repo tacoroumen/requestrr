@@ -163,6 +163,9 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                 .WithTimestamp(DateTime.Now)
                 .WithFooter("Powered by Requestrr");
 
+            if (!string.IsNullOrWhiteSpace(album.AlbumId))
+                embedBuilder.WithUrl($"https://musicbrainz.org/release-group/{album.AlbumId}");
+
             if (!string.IsNullOrWhiteSpace(album.Overview))
                 embedBuilder.WithDescription(album.Overview.Substring(0, Math.Min(album.Overview.Length, 255)) + "(...)");
 
