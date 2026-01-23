@@ -264,6 +264,22 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             await _interactionContext.EditOriginalResponseAsync(builder);
         }
 
+        public async Task DisplayRequestPendingAsync(Movie movie, int requestId)
+        {
+            var message = Language.Current.DiscordCommandMovieRequestPending.ReplaceTokens(movie);
+            var baseEmbed = await GenerateMovieDetailsAsync(movie, _movieSearcher);
+            var footerText = string.IsNullOrWhiteSpace(baseEmbed.Footer?.Text)
+                ? $"{DiscordConstants.OverseerrRequestIdMarker} {requestId}"
+                : $"{baseEmbed.Footer.Text} | {DiscordConstants.OverseerrRequestIdMarker} {requestId}";
+            var embed = new DiscordEmbedBuilder(baseEmbed)
+                .WithFooter(footerText)
+                .Build();
+            var builder = (await AddPreviousDropdownsAsync(movie, new DiscordWebhookBuilder().AddEmbed(embed)))
+                .WithContent(message);
+
+            await _interactionContext.EditOriginalResponseAsync(builder);
+        }
+
         public async Task AskForNotificationRequestAsync(Movie movie)
         {
             var notifyButton = new DiscordButtonComponent(ButtonStyle.Primary, $"MNR/{_interactionContext.User.Id}/{movie.TheMovieDbId}", Language.Current.DiscordCommandNotifyMe, false, new DiscordComponentEmoji(DiscordEmoji.FromUnicode("🔔")));
@@ -308,5 +324,6 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
 
             return builder;
         }
+
     }
 }

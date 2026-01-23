@@ -165,6 +165,9 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
         [JsonProperty("Discord.Command.Movie.Request.Success")]
         public string DiscordCommandMovieRequestSuccess { get; set; }
 
+        [JsonProperty("Discord.Command.Movie.Request.Pending")]
+        public string DiscordCommandMovieRequestPending { get; set; }
+
         [JsonProperty("Discord.Command.RequestButtonDenied")]
         public string DiscordCommandRequestButtonDenied { get; set; }
 
@@ -254,6 +257,15 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
 
         [JsonProperty("Discord.Command.Tv.Request.Success.AllSeasons")]
         public string DiscordCommandTvRequestSuccessAllSeasons { get; set; }
+
+        [JsonProperty("Discord.Command.Tv.Request.Pending.Season")]
+        public string DiscordCommandTvRequestPendingSeason { get; set; }
+
+        [JsonProperty("Discord.Command.Tv.Request.Pending.FutureSeasons")]
+        public string DiscordCommandTvRequestPendingFutureSeasons { get; set; }
+
+        [JsonProperty("Discord.Command.Tv.Request.Pending.AllSeasons")]
+        public string DiscordCommandTvRequestPendingAllSeasons { get; set; }
 
         [JsonProperty("Discord.Command.Tv.Request.Unsupported")]
         public string DiscordCommandTvRequestUnsupported { get; set; }
@@ -493,5 +505,11 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
 
         [JsonProperty("Discord.Command.Music.Artist.Notification.Success")]
         public string DiscordCommandMusicArtistNotificationSuccess { get; set; }
+
+        [JsonProperty("Discord.Command.Request.Approved")]
+        public string DiscordCommandRequestApproved { get; set; }
+
+        [JsonProperty("Discord.Command.Request.Denied")]
+        public string DiscordCommandRequestDenied { get; set; }
     }
 }

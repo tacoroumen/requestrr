@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using DSharpPlus;
 using DSharpPlus.Entities;
@@ -56,6 +57,7 @@ namespace Requestrr.WebApi.RequestrrBot
         private HashSet<ulong> _currentGuilds = new HashSet<ulong>();
         private Language _previousLanguage = Language.Current;
         private int _waitTimeout = 0;
+        private static readonly Regex OverseerrRequestIdRegex = new Regex($"{Regex.Escape(DiscordConstants.OverseerrRequestIdMarker)}\\s*(\\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         public ChatBot(IServiceProvider serviceProvider, ILogger<ChatBot> logger, DiscordSettingsProvider discordSettingsProvider)
         {
@@ -136,6 +138,7 @@ namespace Requestrr.WebApi.RequestrrBot
                 _client.Ready -= Connected;
                 _client.ComponentInteractionCreated -= DiscordComponentInteractionCreatedHandler;
                 _client.ModalSubmitted -= DiscordModalSubmittedHandler;
+                _client.MessageReactionAdded -= DiscordMessageReactionAddedHandler;
                 _client.Dispose();
             }
 
@@ -183,6 +186,7 @@ namespace Requestrr.WebApi.RequestrrBot
                     _client.Ready += Connected;
                     _client.ComponentInteractionCreated += DiscordComponentInteractionCreatedHandler;
                     _client.ModalSubmitted += DiscordModalSubmittedHandler;
+                    _client.MessageReactionAdded += DiscordMessageReactionAddedHandler;
 
                     _currentGuilds = new HashSet<ulong>();
 
@@ -425,6 +429,104 @@ namespace Requestrr.WebApi.RequestrrBot
                 _logger.LogError(ex, "Error while handling interaction: " + ex.Message);
                 await e.Interaction.EditOriginalResponseAsync(new DiscordWebhookBuilder().WithContent(Language.Current.Error));
             }
+        }
+
+        private async Task DiscordMessageReactionAddedHandler(DiscordClient client, MessageReactionAddEventArgs e)
+        {
+            try
+            {
+                if (e.User == null || e.User.IsBot || _currentSettings == null)
+                {
+                    return;
+                }
+
+                if (_currentSettings.AdminUserIds == null || !_currentSettings.AdminUserIds.Any())
+                {
+                    return;
+                }
+
+                if (!_currentSettings.AdminUserIds.Contains(e.User.Id.ToString()))
+                {
+                    return;
+                }
+
+                var message = e.Message;
+                if (message == null || message.Author == null || client.CurrentUser == null || message.Author.Id != client.CurrentUser.Id)
+                {
+                    return;
+                }
+
+                if (!TryGetOverseerrRequestId(message, out var requestId))
+                {
+                    return;
+                }
+
+                var emojiName = e.Emoji?.Name ?? string.Empty;
+                if (IsApproveEmoji(emojiName))
+                {
+                    await HandleOverseerrRequestDecisionAsync(message, requestId, true);
+                }
+                else if (IsDenyEmoji(emojiName))
+                {
+                    await HandleOverseerrRequestDecisionAsync(message, requestId, false);
+                }
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Error while handling reaction: " + ex.Message);
+            }
+        }
+
+        private async Task HandleOverseerrRequestDecisionAsync(DiscordMessage message, int requestId, bool approved)
+        {
+            try
+            {
+                if (approved)
+                {
+                    await _overseerrClient.ApproveRequestAsync(requestId);
+                }
+                else
+                {
+                    await _overseerrClient.DeclineRequestAsync(requestId);
+                }
+
+                var newContent = approved ? Language.Current.DiscordCommandRequestApproved : Language.Current.DiscordCommandRequestDenied;
+                var builder = new DiscordMessageBuilder().WithContent(newContent);
+                foreach (var embed in message.Embeds)
+                {
+                    builder.AddEmbed(embed);
+                }
+
+                await message.ModifyAsync(builder);
+                await message.DeleteAllReactionsAsync();
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, $"Error while updating Overseerr request {requestId}: " + ex.Message);
+            }
+        }
+
+        private static bool TryGetOverseerrRequestId(DiscordMessage message, out int requestId)
+        {
+            requestId = 0;
+            var content = message.Content ?? string.Empty;
+            var footerText = message.Embeds.FirstOrDefault()?.Footer?.Text ?? string.Empty;
+            var match = OverseerrRequestIdRegex.Match(content);
+            if (!match.Success)
+            {
+                match = OverseerrRequestIdRegex.Match(footerText);
+            }
+            return match.Success && int.TryParse(match.Groups[1].Value, out requestId);
+        }
+
+        private static bool IsApproveEmoji(string emojiName)
+        {
+            return emojiName == "👍" || emojiName == "✅";
+        }
+
+        private static bool IsDenyEmoji(string emojiName)
+        {
+            return emojiName == "👎" || emojiName == "❌";
         }
 
         private async Task SlashCommandErrorHandler(SlashCommandsExtension extension, SlashCommandErrorEventArgs args)

@@ -18,6 +18,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
         public int TvShowDownloadClientConfigurationHash { get; set; }
         public string MusicDownloadClient { get; set; }
         public int MusicDownloadClientConfigurationHash { get; set; }
+        public string[] AdminUserIds { get; set; }
         public bool EnableRequestsThroughDirectMessages { get; set; }
         public bool AutomaticallyNotifyRequesters { get; set; }
         public string NotificationMode { get; set; }
@@ -30,20 +31,21 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                    BotToken == settings.BotToken &&
                    ClientID == settings.ClientID &&
                    StatusMessage == settings.StatusMessage &&
-                   MonitoredChannels.SequenceEqual(settings.MonitoredChannels) &&
-                   TvShowRoles.SequenceEqual(settings.TvShowRoles) &&
-                   MovieRoles.SequenceEqual(settings.MovieRoles) &&
-                   MusicRoles.SequenceEqual(settings.MusicRoles) &&
+                   (MonitoredChannels ?? Array.Empty<string>()).SequenceEqual(settings.MonitoredChannels ?? Array.Empty<string>()) &&
+                   (TvShowRoles ?? Array.Empty<string>()).SequenceEqual(settings.TvShowRoles ?? Array.Empty<string>()) &&
+                   (MovieRoles ?? Array.Empty<string>()).SequenceEqual(settings.MovieRoles ?? Array.Empty<string>()) &&
+                   (MusicRoles ?? Array.Empty<string>()).SequenceEqual(settings.MusicRoles ?? Array.Empty<string>()) &&
                    MovieDownloadClient == settings.MovieDownloadClient &&
                    MovieDownloadClientConfigurationHash == settings.MovieDownloadClientConfigurationHash &&
                    TvShowDownloadClient == settings.TvShowDownloadClient &&
                    TvShowDownloadClientConfigurationHash == settings.TvShowDownloadClientConfigurationHash &&
                    MusicDownloadClient == settings.MusicDownloadClient &&
                    MusicDownloadClientConfigurationHash == settings.MusicDownloadClientConfigurationHash &&
+                   (AdminUserIds ?? Array.Empty<string>()).SequenceEqual(settings.AdminUserIds ?? Array.Empty<string>()) &&
                    EnableRequestsThroughDirectMessages == settings.EnableRequestsThroughDirectMessages &&
                    AutomaticallyNotifyRequesters == settings.AutomaticallyNotifyRequesters &&
                    NotificationMode == settings.NotificationMode &&
-                   NotificationChannels.SequenceEqual(settings.NotificationChannels) &&
+                   (NotificationChannels ?? Array.Empty<string>()).SequenceEqual(settings.NotificationChannels ?? Array.Empty<string>()) &&
                    AutomaticallyPurgeCommandMessages == settings.AutomaticallyPurgeCommandMessages;
         }
 
@@ -63,6 +65,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             hash.Add(TvShowDownloadClientConfigurationHash);
             hash.Add(MusicDownloadClient);
             hash.Add(MusicDownloadClientConfigurationHash);
+            hash.Add(AdminUserIds);
             hash.Add(EnableRequestsThroughDirectMessages);
             hash.Add(AutomaticallyNotifyRequesters);
             hash.Add(NotificationMode);

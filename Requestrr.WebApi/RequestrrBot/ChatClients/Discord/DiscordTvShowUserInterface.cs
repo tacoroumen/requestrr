@@ -136,6 +136,27 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             await _interactionContext.EditOriginalResponseAsync(builder);
         }
 
+        public async Task DisplayRequestPendingForSeasonAsync(TvShow tvShow, TvSeason requestedSeason, int requestId)
+        {
+            var baseEmbed = GenerateTvShowDetailsAsync(tvShow);
+            var footerText = string.IsNullOrWhiteSpace(baseEmbed.Footer?.Text)
+                ? $"{DiscordConstants.OverseerrRequestIdMarker} {requestId}"
+                : $"{baseEmbed.Footer.Text} | {DiscordConstants.OverseerrRequestIdMarker} {requestId}";
+            var embed = new DiscordEmbedBuilder(baseEmbed)
+                .WithFooter(footerText)
+                .Build();
+            var message = requestedSeason is AllTvSeasons
+                ? Language.Current.DiscordCommandTvRequestPendingAllSeasons.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
+                : requestedSeason is FutureTvSeasons
+                    ? Language.Current.DiscordCommandTvRequestPendingFutureSeasons.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
+                    : Language.Current.DiscordCommandTvRequestPendingSeason.ReplaceTokens(tvShow, requestedSeason.SeasonNumber);
+
+            var builder = (await AddPreviousDropdownsAsync(tvShow, new DiscordWebhookBuilder().AddEmbed(embed)))
+                .WithContent(message);
+
+            await _interactionContext.EditOriginalResponseAsync(builder);
+        }
+
         public async Task DisplayTvShowDetailsForSeasonAsync(TvShowRequest request, TvShow tvShow, TvSeason season)
         {
             var message = season is AllTvSeasons
