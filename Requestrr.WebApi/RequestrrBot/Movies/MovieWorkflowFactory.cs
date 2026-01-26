@@ -44,7 +44,7 @@ namespace Requestrr.WebApi.RequestrrBot.Movies
                                                 categoryId,
                                                 GetMovieClient<IMovieSearcher>(settings),
                                                 GetMovieClient<IMovieRequester>(settings),
-                                                new DiscordMovieUserInterface(interaction, GetMovieClient<IMovieSearcher>(settings)),
+                                                new DiscordMovieUserInterface(interaction, GetMovieClient<IMovieSearcher>(settings), _settingsProvider),
                                                 CreateMovieNotificationWorkflow(interaction, settings));
         }
 
@@ -63,7 +63,7 @@ namespace Requestrr.WebApi.RequestrrBot.Movies
                                                 categoryId,
                                                 GetMovieClient<IMovieSearcher>(settings),
                                                 GetMovieClient<IMovieRequester>(settings),
-                                                new DiscordMovieUserInterface(interaction, GetMovieClient<IMovieSearcher>(settings)),
+                                                new DiscordMovieUserInterface(interaction, GetMovieClient<IMovieSearcher>(settings), _settingsProvider),
                                                 CreateMovieNotificationWorkflow(interaction, settings));
         }
 
@@ -97,7 +97,7 @@ namespace Requestrr.WebApi.RequestrrBot.Movies
 
         private IMovieNotificationWorkflow CreateMovieNotificationWorkflow(DiscordInteraction interaction, DiscordSettings settings)
         {
-            var userInterface = new DiscordMovieUserInterface(interaction, GetMovieClient<IMovieSearcher>(settings));
+            var userInterface = new DiscordMovieUserInterface(interaction, GetMovieClient<IMovieSearcher>(settings), _settingsProvider);
             IMovieNotificationWorkflow movieNotificationWorkflow = new DisabledMovieNotificationWorkflow(userInterface);
 
             if (settings.NotificationMode != NotificationMode.Disabled)

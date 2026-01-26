@@ -306,6 +306,22 @@ namespace Requestrr.WebApi
                 ((JObject)settingsJson.ChatClients.Discord).Add("AdminUserIds", JToken.FromObject(new List<string>()));
                 File.WriteAllText(settingsFilePath, JsonConvert.SerializeObject(settingsJson));
             }
+
+            if (settingsJson.Version.ToString().Equals("2.1.4", StringComparison.InvariantCultureIgnoreCase))
+            {
+                settingsJson.Version = "2.1.5";
+
+                ((JObject)settingsJson.ChatClients.Discord).Add("AdminChannelIds", JToken.FromObject(new List<string>()));
+                File.WriteAllText(settingsFilePath, JsonConvert.SerializeObject(settingsJson));
+            }
+
+            if (settingsJson.Version.ToString().Equals("2.1.5", StringComparison.InvariantCultureIgnoreCase))
+            {
+                settingsJson.Version = "2.1.6";
+
+                ((JObject)settingsJson.ChatClients.Discord).Add("AdminChannelAllRequests", false);
+                File.WriteAllText(settingsFilePath, JsonConvert.SerializeObject(settingsJson));
+            }
         }
     }
 }

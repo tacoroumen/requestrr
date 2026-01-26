@@ -21,6 +21,8 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 settings.ChatClients.Discord.MovieRoles = JToken.FromObject(chatClientsSettings.Discord.MovieRoles);
                 settings.ChatClients.Discord.MusicRoles = JToken.FromObject(chatClientsSettings.Discord.MusicRoles);
                 settings.ChatClients.Discord.AdminUserIds = JToken.FromObject(chatClientsSettings.Discord.AdminUserIds);
+                settings.ChatClients.Discord.AdminChannelIds = JToken.FromObject(chatClientsSettings.Discord.AdminChannelIds);
+                settings.ChatClients.Discord.AdminChannelAllRequests = chatClientsSettings.Discord.AdminChannelAllRequests;
                 settings.ChatClients.Discord.EnableRequestsThroughDirectMessages = chatClientsSettings.Discord.EnableRequestsThroughDirectMessages;
                 settings.ChatClients.Discord.AutomaticallyNotifyRequesters = chatClientsSettings.Discord.AutomaticallyNotifyRequesters;
                 settings.ChatClients.Discord.NotificationMode = chatClientsSettings.Discord.NotificationMode;

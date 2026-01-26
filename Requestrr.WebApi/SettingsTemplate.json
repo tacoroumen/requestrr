@@ -13,6 +13,8 @@
       "MovieRoles": [],
       "MusicRoles": [],
       "AdminUserIds": [],
+      "AdminChannelIds": [],
+      "AdminChannelAllRequests": false,
       "MonitoredChannels": [],
       "EnableRequestsThroughDirectMessages": false,
       "AutomaticallyNotifyRequesters": true,
@@ -130,5 +132,5 @@
   "Port": 4545,
   "BaseUrl": "",
   "DisableAuthentication": false,
-  "Version": "2.1.4"
+  "Version": "2.1.6"
 }

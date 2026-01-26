@@ -69,6 +69,8 @@ function ChatClients(props) {
   const [movieRoles, setMovieRoles] = useState([]);
   const [musicRoles, setMusicRoles] = useState([]);
   const [adminUserIds, setAdminUserIds] = useState([]);
+  const [adminChannelIds, setAdminChannelIds] = useState([]);
+  const [adminChannelAllRequests, setAdminChannelAllRequests] = useState(false);
   const [automaticallyNotifyRequesters, setAutomaticallyNotifyRequesters] = useState(true);
   const [notificationMode, setNotificationMode] = useState("PrivateMessages");
   const [notificationChannels, setNotificationChannels] = useState([]);
@@ -93,6 +95,8 @@ function ChatClients(props) {
         setMovieRoles(data.payload.movieRoles);
         setMusicRoles(data.payload.musicRoles);
         setAdminUserIds(data.payload.adminUserIds || []);
+        setAdminChannelIds(data.payload.adminChannelIds || []);
+        setAdminChannelAllRequests(data.payload.adminChannelAllRequests || false);
         setAutomaticallyNotifyRequesters(data.payload.automaticallyNotifyRequesters);
         setNotificationMode(data.payload.notificationMode);
         setNotificationChannels(data.payload.notificationChannels);
@@ -195,6 +199,8 @@ function ChatClients(props) {
           movieRoles: movieRoles,
           musicRoles: musicRoles,
           adminUserIds: adminUserIds,
+          adminChannelIds: adminChannelIds,
+          adminChannelAllRequests: adminChannelAllRequests,
           enableRequestsThroughDirectMessages: enableRequestsThroughDirectMessages,
           automaticallyNotifyRequesters: automaticallyNotifyRequesters,
           notificationMode: notificationMode,
@@ -457,6 +463,40 @@ function ChatClients(props) {
                             selectedItems={adminUserIds.map(x => { return { name: x, id: x } })}
                             items={adminUserIds.map(x => { return { name: x, id: x } })}
                             onChange={newAdminIds => setAdminUserIds(newAdminIds.filter(x => /\S/.test(x.id)).map(x => x.id.trim()))} />
+                        </FormGroup>
+                      </Col>
+                      <Col lg="6">
+                        <FormGroup>
+                          <MultiDropdown
+                            name="Admin channel ids for approvals"
+                            create={true}
+                            searchable={true}
+                            placeholder="Enter discord channel ids for request approvals."
+                            labelField="name"
+                            valueField="id"
+                            dropdownHandle={false}
+                            selectedItems={adminChannelIds.map(x => { return { name: x, id: x } })}
+                            items={adminChannelIds.map(x => { return { name: x, id: x } })}
+                            onChange={newChannelIds => setAdminChannelIds(newChannelIds.filter(x => /\S/.test(x.id)).map(x => x.id.trim()))} />
+                        </FormGroup>
+                      </Col>
+                    </Row>
+                    <Row>
+                      <Col md="12">
+                        <FormGroup className="custom-control custom-control-alternative custom-checkbox mb-3">
+                          <Input
+                            className="custom-control-input"
+                            id="adminChannelAllRequests"
+                            type="checkbox"
+                            onChange={e => { setAdminChannelAllRequests(!adminChannelAllRequests); }}
+                            checked={adminChannelAllRequests}
+                          />
+                          <label
+                            className="custom-control-label"
+                            htmlFor="adminChannelAllRequests"
+                          >
+                            <span className="text-muted">Send all requests to admin channel(s), not only pending ones.</span>
+                          </label>
                         </FormGroup>
                       </Col>
                     </Row>

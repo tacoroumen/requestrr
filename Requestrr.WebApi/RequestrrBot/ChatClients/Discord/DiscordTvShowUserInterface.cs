@@ -14,10 +14,12 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
     {
         private readonly DiscordInteraction _interactionContext;
         private readonly ITvShowIssueSearcher _tvShowIssue;
+        private readonly DiscordSettingsProvider _settingsProvider;
 
-        public DiscordTvShowUserInterface(DiscordInteraction interactionContext, ITvShowIssueSearcher tvShowIssue = null)
+        public DiscordTvShowUserInterface(DiscordInteraction interactionContext, DiscordSettingsProvider settingsProvider, ITvShowIssueSearcher tvShowIssue = null)
         {
             _interactionContext = interactionContext;
+            _settingsProvider = settingsProvider;
             _tvShowIssue = tvShowIssue;
         }
 
@@ -118,6 +120,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             var builder = (await AddPreviousDropdownsAsync(tvShow, new DiscordWebhookBuilder().AddEmbed(embed))).AddComponents(deniedButton).WithContent(Language.Current.DiscordCommandTvRequestDenied);
 
             await _interactionContext.EditOriginalResponseAsync(builder);
+            await SendAdminRequestMessageAsync(tvShow, embed, Language.Current.DiscordCommandRequestDenied);
         }
 
         public async Task DisplayRequestSuccessForSeasonAsync(TvShow tvShow, TvSeason requestedSeason)
@@ -134,10 +137,12 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             var builder = (await AddPreviousDropdownsAsync(tvShow, new DiscordWebhookBuilder().AddEmbed(embed))).AddComponents(successButton).WithContent(message);
 
             await _interactionContext.EditOriginalResponseAsync(builder);
+            await SendAdminRequestMessageAsync(tvShow, embed, Language.Current.DiscordCommandRequestApproved);
         }
 
         public async Task DisplayRequestPendingForSeasonAsync(TvShow tvShow, TvSeason requestedSeason, int requestId)
         {
+            var settings = _settingsProvider.Provide();
             var baseEmbed = GenerateTvShowDetailsAsync(tvShow);
             var footerText = string.IsNullOrWhiteSpace(baseEmbed.Footer?.Text)
                 ? $"{DiscordConstants.OverseerrRequestIdMarker} {requestId}"
@@ -146,15 +151,22 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                 .WithFooter(footerText)
                 .Build();
             var message = requestedSeason is AllTvSeasons
-                ? Language.Current.DiscordCommandTvRequestPendingAllSeasons.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
+                ? settings.AutomaticallyPurgeCommandMessages
+                    ? Language.Current.DiscordCommandTvRequestPendingAllSeasonsSilent.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
+                    : Language.Current.DiscordCommandTvRequestPendingAllSeasons.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
                 : requestedSeason is FutureTvSeasons
-                    ? Language.Current.DiscordCommandTvRequestPendingFutureSeasons.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
-                    : Language.Current.DiscordCommandTvRequestPendingSeason.ReplaceTokens(tvShow, requestedSeason.SeasonNumber);
+                    ? settings.AutomaticallyPurgeCommandMessages
+                        ? Language.Current.DiscordCommandTvRequestPendingFutureSeasonsSilent.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
+                        : Language.Current.DiscordCommandTvRequestPendingFutureSeasons.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
+                    : settings.AutomaticallyPurgeCommandMessages
+                        ? Language.Current.DiscordCommandTvRequestPendingSeasonSilent.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
+                        : Language.Current.DiscordCommandTvRequestPendingSeason.ReplaceTokens(tvShow, requestedSeason.SeasonNumber);
 
             var builder = (await AddPreviousDropdownsAsync(tvShow, new DiscordWebhookBuilder().AddEmbed(embed)))
                 .WithContent(message);
 
             await _interactionContext.EditOriginalResponseAsync(builder);
+            await SendAdminPendingMessageAsync(tvShow, embed, message);
         }
 
         public async Task DisplayTvShowDetailsForSeasonAsync(TvShowRequest request, TvShow tvShow, TvSeason season)
@@ -454,6 +466,67 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             }
 
             return builder;
+        }
+
+        private async Task SendAdminPendingMessageAsync(TvShow tvShow, DiscordEmbed embed, string userMessage)
+        {
+            var settings = _settingsProvider.Provide();
+            if (settings.AdminChannelIds == null || !settings.AdminChannelIds.Any())
+            {
+                return;
+            }
+
+            var adminMessage = Language.Current.DiscordCommandRequestPendingAdmin
+                .ReplaceTokens(LanguageTokens.AuthorUsername, _interactionContext.User.Username);
+
+            var builder = new DiscordMessageBuilder()
+                .WithContent(adminMessage)
+                .AddEmbed(embed);
+
+            foreach (var channelId in settings.AdminChannelIds)
+            {
+                if (!ulong.TryParse(channelId, out var parsedChannelId))
+                {
+                    continue;
+                }
+
+                var channel = _interactionContext.Guild?.GetChannel(parsedChannelId);
+                if (channel != null)
+                {
+                    await channel.SendMessageAsync(builder);
+                }
+            }
+        }
+
+        private async Task SendAdminRequestMessageAsync(TvShow tvShow, DiscordEmbed embed, string statusMessage)
+        {
+            var settings = _settingsProvider.Provide();
+            if (!settings.AdminChannelAllRequests || settings.AdminChannelIds == null || !settings.AdminChannelIds.Any())
+            {
+                return;
+            }
+
+            var adminMessage = Language.Current.DiscordCommandRequestAdminSummary
+                .ReplaceTokens(LanguageTokens.AuthorUsername, _interactionContext.User.Username)
+                .ReplaceTokens(LanguageTokens.RequestStatus, statusMessage);
+
+            var builder = new DiscordMessageBuilder()
+                .WithContent(adminMessage)
+                .AddEmbed(embed);
+
+            foreach (var channelId in settings.AdminChannelIds)
+            {
+                if (!ulong.TryParse(channelId, out var parsedChannelId))
+                {
+                    continue;
+                }
+
+                var channel = _interactionContext.Guild?.GetChannel(parsedChannelId);
+                if (channel != null)
+                {
+                    await channel.SendMessageAsync(builder);
+                }
+            }
         }
 
         private string GetFormatedTvShowTitle(SearchedTvShow tvShow)

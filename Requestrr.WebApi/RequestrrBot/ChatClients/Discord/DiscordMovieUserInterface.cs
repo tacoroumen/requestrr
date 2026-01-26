@@ -17,13 +17,16 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
     {
         private readonly DiscordInteraction _interactionContext;
         private readonly IMovieSearcher _movieSearcher;
+        private readonly DiscordSettingsProvider _settingsProvider;
 
         public DiscordMovieUserInterface(
             DiscordInteraction interactionContext,
-            IMovieSearcher movieSearcher)
+            IMovieSearcher movieSearcher,
+            DiscordSettingsProvider settingsProvider)
         {
             _interactionContext = interactionContext;
             _movieSearcher = movieSearcher;
+            _settingsProvider = settingsProvider;
         }
 
         public async Task ShowMovieSelection(MovieRequest request, IReadOnlyList<Movie> movies)
@@ -260,13 +263,18 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
         {
             var successButton = new DiscordButtonComponent(ButtonStyle.Success, $"0/1/0", Language.Current.DiscordCommandRequestButtonSuccess);
 
-            var builder = (await AddPreviousDropdownsAsync(movie, new DiscordWebhookBuilder().AddEmbed(await GenerateMovieDetailsAsync(movie, _movieSearcher)))).AddComponents(successButton).WithContent(Language.Current.DiscordCommandMovieRequestSuccess.ReplaceTokens(movie));
+            var details = await GenerateMovieDetailsAsync(movie, _movieSearcher);
+            var builder = (await AddPreviousDropdownsAsync(movie, new DiscordWebhookBuilder().AddEmbed(details))).AddComponents(successButton).WithContent(Language.Current.DiscordCommandMovieRequestSuccess.ReplaceTokens(movie));
             await _interactionContext.EditOriginalResponseAsync(builder);
+            await SendAdminRequestMessageAsync(movie, details, Language.Current.DiscordCommandRequestApproved);
         }
 
         public async Task DisplayRequestPendingAsync(Movie movie, int requestId)
         {
-            var message = Language.Current.DiscordCommandMovieRequestPending.ReplaceTokens(movie);
+            var settings = _settingsProvider.Provide();
+            var message = settings.AutomaticallyPurgeCommandMessages
+                ? Language.Current.DiscordCommandMovieRequestPendingSilent.ReplaceTokens(movie)
+                : Language.Current.DiscordCommandMovieRequestPending.ReplaceTokens(movie);
             var baseEmbed = await GenerateMovieDetailsAsync(movie, _movieSearcher);
             var footerText = string.IsNullOrWhiteSpace(baseEmbed.Footer?.Text)
                 ? $"{DiscordConstants.OverseerrRequestIdMarker} {requestId}"
@@ -278,6 +286,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                 .WithContent(message);
 
             await _interactionContext.EditOriginalResponseAsync(builder);
+            await SendAdminPendingMessageAsync(movie, embed, message);
         }
 
         public async Task AskForNotificationRequestAsync(Movie movie)
@@ -300,8 +309,10 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
         {
             var deniedButton = new DiscordButtonComponent(ButtonStyle.Danger, $"0/1/0", Language.Current.DiscordCommandRequestButtonDenied);
 
-            var builder = (await AddPreviousDropdownsAsync(movie, new DiscordWebhookBuilder().AddEmbed(await GenerateMovieDetailsAsync(movie, _movieSearcher)))).AddComponents(deniedButton).WithContent(Language.Current.DiscordCommandMovieRequestDenied);
+            var details = await GenerateMovieDetailsAsync(movie, _movieSearcher);
+            var builder = (await AddPreviousDropdownsAsync(movie, new DiscordWebhookBuilder().AddEmbed(details))).AddComponents(deniedButton).WithContent(Language.Current.DiscordCommandMovieRequestDenied);
             await _interactionContext.EditOriginalResponseAsync(builder);
+            await SendAdminRequestMessageAsync(movie, details, Language.Current.DiscordCommandRequestDenied);
         }
 
         public async Task WarnMovieUnavailableAndAlreadyHasNotificationAsync(Movie movie)
@@ -323,6 +334,68 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             }
 
             return builder;
+        }
+
+        private async Task SendAdminPendingMessageAsync(Movie movie, DiscordEmbed embed, string userMessage)
+        {
+            var settings = _settingsProvider.Provide();
+            if (settings.AdminChannelIds == null || !settings.AdminChannelIds.Any())
+            {
+                return;
+            }
+
+            var adminMessage = Language.Current.DiscordCommandRequestPendingAdmin
+                .ReplaceTokens(LanguageTokens.AuthorUsername, _interactionContext.User.Username);
+
+            var builder = new DiscordMessageBuilder()
+                .WithContent(adminMessage)
+                .AddEmbed(embed);
+
+            foreach (var channelId in settings.AdminChannelIds)
+            {
+                if (!ulong.TryParse(channelId, out var parsedChannelId))
+                {
+                    continue;
+                }
+
+                var channel = _interactionContext.Guild?.GetChannel(parsedChannelId);
+                if (channel != null)
+                {
+                    await channel.SendMessageAsync(builder);
+                }
+            }
+        }
+
+        private async Task SendAdminRequestMessageAsync(Movie movie, DiscordEmbed baseEmbed, string statusMessage)
+        {
+            var settings = _settingsProvider.Provide();
+            if (!settings.AdminChannelAllRequests || settings.AdminChannelIds == null || !settings.AdminChannelIds.Any())
+            {
+                return;
+            }
+
+            var embed = new DiscordEmbedBuilder(baseEmbed).Build();
+            var adminMessage = Language.Current.DiscordCommandRequestAdminSummary
+                .ReplaceTokens(LanguageTokens.AuthorUsername, _interactionContext.User.Username)
+                .ReplaceTokens(LanguageTokens.RequestStatus, statusMessage);
+
+            var builder = new DiscordMessageBuilder()
+                .WithContent(adminMessage)
+                .AddEmbed(embed);
+
+            foreach (var channelId in settings.AdminChannelIds)
+            {
+                if (!ulong.TryParse(channelId, out var parsedChannelId))
+                {
+                    continue;
+                }
+
+                var channel = _interactionContext.Guild?.GetChannel(parsedChannelId);
+                if (channel != null)
+                {
+                    await channel.SendMessageAsync(builder);
+                }
+            }
         }
 
     }

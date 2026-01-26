@@ -52,7 +52,7 @@ namespace Requestrr.WebApi.RequestrrBot.TvShows
                                                 categoryId,
                                                 GetTvShowClient<ITvShowSearcher>(settings),
                                                 GetTvShowClient<ITvShowRequester>(settings),
-                                                new DiscordTvShowUserInterface(interaction, issueSearcher),
+                                                new DiscordTvShowUserInterface(interaction, _settingsProvider, issueSearcher),
                                                 CreateMovieNotificationWorkflow(interaction, settings, GetTvShowClient<ITvShowSearcher>(settings)),
                                                 _tvShowsSettingsProvider.Provide());
         }
@@ -73,7 +73,7 @@ namespace Requestrr.WebApi.RequestrrBot.TvShows
                 categoryId,
                 GetTvShowClient<ITvShowSearcher>(settings),
                 GetTvShowClient<ITvShowRequester>(settings),
-                new DiscordTvShowUserInterface(interaction, issueSearcher),
+                new DiscordTvShowUserInterface(interaction, _settingsProvider, issueSearcher),
                 CreateMovieNotificationWorkflow(interaction, settings, GetTvShowClient<ITvShowSearcher>(settings)),
                 _tvShowsSettingsProvider.Provide());
         }
@@ -109,7 +109,7 @@ namespace Requestrr.WebApi.RequestrrBot.TvShows
 
         private ITvShowNotificationWorkflow CreateMovieNotificationWorkflow(DiscordInteraction interaction, DiscordSettings settings, ITvShowSearcher tvShowSearcher)
         {
-            var userInterface = new DiscordTvShowUserInterface(interaction);
+            var userInterface = new DiscordTvShowUserInterface(interaction, _settingsProvider);
             ITvShowNotificationWorkflow movieNotificationWorkflow = new DisabledTvShowNotificationWorkflow(userInterface);
 
             if (settings.NotificationMode != NotificationMode.Disabled)

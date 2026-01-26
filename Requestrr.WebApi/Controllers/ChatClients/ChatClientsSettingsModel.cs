@@ -25,6 +25,10 @@ namespace Requestrr.WebApi.Controllers.ChatClients
 
         public string[] AdminUserIds { get; set; }
 
+        public string[] AdminChannelIds { get; set; }
+
+        public bool AdminChannelAllRequests { get; set; }
+
         public bool EnableRequestsThroughDirectMessages { get; set; }
 
         public bool AutomaticallyNotifyRequesters { get; set; }
