@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using DSharpPlus;
 using DSharpPlus.Entities;
+using Requestrr.WebApi.RequestrrBot.Approvals;
 using Requestrr.WebApi.RequestrrBot.Locale;
 using Requestrr.WebApi.RequestrrBot.Movies;
 using Requestrr.WebApi.RequestrrBot.TvShows;
@@ -15,11 +16,13 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
         private readonly DiscordInteraction _interactionContext;
         private readonly ITvShowIssueSearcher _tvShowIssue;
         private readonly DiscordSettingsProvider _settingsProvider;
+        private readonly RequestApprovalRepository _approvalRepository;
 
-        public DiscordTvShowUserInterface(DiscordInteraction interactionContext, DiscordSettingsProvider settingsProvider, ITvShowIssueSearcher tvShowIssue = null)
+        public DiscordTvShowUserInterface(DiscordInteraction interactionContext, DiscordSettingsProvider settingsProvider, RequestApprovalRepository approvalRepository, ITvShowIssueSearcher tvShowIssue = null)
         {
             _interactionContext = interactionContext;
             _settingsProvider = settingsProvider;
+            _approvalRepository = approvalRepository;
             _tvShowIssue = tvShowIssue;
         }
 
@@ -166,7 +169,9 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                 .WithContent(message);
 
             await _interactionContext.EditOriginalResponseAsync(builder);
-            await SendAdminPendingMessageAsync(tvShow, embed, message);
+            var originalMessage = await _interactionContext.GetOriginalResponseAsync();
+            _approvalRepository.AddMessage(requestId, _interactionContext.User.Username, originalMessage.ChannelId, originalMessage.Id, false);
+            await SendAdminPendingMessageAsync(tvShow, embed, requestId);
         }
 
         public async Task DisplayTvShowDetailsForSeasonAsync(TvShowRequest request, TvShow tvShow, TvSeason season)
@@ -468,7 +473,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             return builder;
         }
 
-        private async Task SendAdminPendingMessageAsync(TvShow tvShow, DiscordEmbed embed, string userMessage)
+        private async Task SendAdminPendingMessageAsync(TvShow tvShow, DiscordEmbed embed, int requestId)
         {
             var settings = _settingsProvider.Provide();
             if (settings.AdminChannelIds == null || !settings.AdminChannelIds.Any())
@@ -476,11 +481,11 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                 return;
             }
 
-            var adminMessage = Language.Current.DiscordCommandRequestPendingAdmin
+            var adminPrompt = Language.Current.DiscordCommandRequestPendingAdmin
                 .ReplaceTokens(LanguageTokens.AuthorUsername, _interactionContext.User.Username);
 
             var builder = new DiscordMessageBuilder()
-                .WithContent(adminMessage)
+                .WithContent(adminPrompt)
                 .AddEmbed(embed);
 
             foreach (var channelId in settings.AdminChannelIds)
@@ -493,7 +498,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                 var channel = _interactionContext.Guild?.GetChannel(parsedChannelId);
                 if (channel != null)
                 {
-                    await channel.SendMessageAsync(builder);
+                    var adminRequestMessage = await channel.SendMessageAsync(builder);
+                    _approvalRepository.AddMessage(requestId, _interactionContext.User.Username, adminRequestMessage.ChannelId, adminRequestMessage.Id, true);
                 }
             }
         }

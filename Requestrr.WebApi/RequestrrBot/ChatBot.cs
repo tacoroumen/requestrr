@@ -28,6 +28,7 @@ using Requestrr.WebApi.RequestrrBot.Notifications.Movies;
 using Requestrr.WebApi.RequestrrBot.Notifications.Music;
 using Requestrr.WebApi.RequestrrBot.Notifications.TvShows;
 using Requestrr.WebApi.RequestrrBot.TvShows;
+using Requestrr.WebApi.RequestrrBot.Approvals;
 
 namespace Requestrr.WebApi.RequestrrBot
 {
@@ -48,6 +49,7 @@ namespace Requestrr.WebApi.RequestrrBot
         private MovieNotificationsRepository _movieNotificationRepository = new MovieNotificationsRepository();
         private TvShowNotificationsRepository _tvShowNotificationRepository = new TvShowNotificationsRepository();
         private MusicNotificationsRepository _musicNotificationRepository = new MusicNotificationsRepository();
+        private RequestApprovalRepository _requestApprovalRepository = new RequestApprovalRepository();
         private OverseerrClient _overseerrClient;
         private OmbiClient _ombiDownloadClient;
         private RadarrClient _radarrDownloadClient;
@@ -69,8 +71,8 @@ namespace Requestrr.WebApi.RequestrrBot
             _radarrDownloadClient = new RadarrClient(serviceProvider.Get<IHttpClientFactory>(), serviceProvider.Get<ILogger<RadarrClient>>(), serviceProvider.Get<RadarrSettingsProvider>());
             _sonarrDownloadClient = new SonarrClient(serviceProvider.Get<IHttpClientFactory>(), serviceProvider.Get<ILogger<SonarrClient>>(), serviceProvider.Get<SonarrSettingsProvider>());
             _lidarrDownloadClient = new LidarrClient(serviceProvider.Get<IHttpClientFactory>(), serviceProvider.Get<ILogger<LidarrClient>>(), serviceProvider.Get<LidarrSettingsProvider>());
-            _movieWorkflowFactory = new MovieWorkflowFactory(_discordSettingsProvider, _movieNotificationRepository, _overseerrClient, _ombiDownloadClient, _radarrDownloadClient);
-            _tvShowWorkflowFactory = new TvShowWorkflowFactory(serviceProvider.Get<TvShowsSettingsProvider>(), _discordSettingsProvider, _tvShowNotificationRepository, _overseerrClient, _ombiDownloadClient, _sonarrDownloadClient);
+            _movieWorkflowFactory = new MovieWorkflowFactory(_discordSettingsProvider, _movieNotificationRepository, _requestApprovalRepository, _overseerrClient, _ombiDownloadClient, _radarrDownloadClient);
+            _tvShowWorkflowFactory = new TvShowWorkflowFactory(serviceProvider.Get<TvShowsSettingsProvider>(), _discordSettingsProvider, _tvShowNotificationRepository, _requestApprovalRepository, _overseerrClient, _ombiDownloadClient, _sonarrDownloadClient);
             _musicWorkflowFactory = new MusicWorkflowFactory(_discordSettingsProvider, _musicNotificationRepository, _lidarrDownloadClient);
         }
 
@@ -451,6 +453,36 @@ namespace Requestrr.WebApi.RequestrrBot
                 }
 
                 var message = e.Message;
+                if (message == null && e.Channel != null)
+                {
+                    try
+                    {
+                        var messageIdProperty = e.GetType().GetProperty("MessageId");
+                        if (messageIdProperty != null)
+                        {
+                            var messageIdValue = messageIdProperty.GetValue(e);
+                            if (messageIdValue is ulong messageId)
+                            {
+                                message = await e.Channel.GetMessageAsync(messageId);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        return;
+                    }
+                }
+                else if (message != null && message.Author == null && e.Channel != null)
+                {
+                    try
+                    {
+                        message = await e.Channel.GetMessageAsync(message.Id);
+                    }
+                    catch
+                    {
+                        return;
+                    }
+                }
                 if (message == null || message.Author == null || client.CurrentUser == null || message.Author.Id != client.CurrentUser.Id)
                 {
                     return;
@@ -490,20 +522,85 @@ namespace Requestrr.WebApi.RequestrrBot
                     await _overseerrClient.DeclineRequestAsync(requestId);
                 }
 
-                var newContent = approved ? Language.Current.DiscordCommandRequestApproved : Language.Current.DiscordCommandRequestDenied;
-                var builder = new DiscordMessageBuilder().WithContent(newContent);
-                foreach (var embed in message.Embeds)
+                var approvalRecord = _requestApprovalRepository.GetSnapshot(requestId);
+                if (approvalRecord != null && approvalRecord.Messages.Any())
                 {
-                    builder.AddEmbed(embed);
+                    await UpdateApprovalMessagesAsync(approvalRecord, approved);
+                    _requestApprovalRepository.Remove(requestId);
                 }
-
-                await message.ModifyAsync(builder);
-                await message.DeleteAllReactionsAsync();
+                else
+                {
+                    await UpdateApprovalMessageAsync(message, approved, IsAdminChannel(message.ChannelId));
+                }
             }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, $"Error while updating Overseerr request {requestId}: " + ex.Message);
             }
+        }
+
+        private async Task UpdateApprovalMessagesAsync(RequestApprovalRecord record, bool approved)
+        {
+            foreach (var messageRef in record.Messages)
+            {
+                try
+                {
+                    var channel = await _client.GetChannelAsync(messageRef.ChannelId);
+                    if (channel == null)
+                    {
+                        continue;
+                    }
+
+                    var message = await channel.GetMessageAsync(messageRef.MessageId);
+                    if (message == null)
+                    {
+                        continue;
+                    }
+
+                    await UpdateApprovalMessageAsync(message, approved, messageRef.IsAdmin, record.RequesterUsername);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, $"Error while updating approval message {messageRef.MessageId}.");
+                }
+            }
+        }
+
+        private async Task UpdateApprovalMessageAsync(DiscordMessage message, bool approved, bool isAdminMessage, string requesterUsername = "")
+        {
+            var statusMessage = approved ? Language.Current.DiscordCommandRequestApproved : Language.Current.DiscordCommandRequestDenied;
+            var content = isAdminMessage
+                ? Language.Current.DiscordCommandRequestAdminSummary
+                    .ReplaceTokens(LanguageTokens.AuthorUsername, requesterUsername ?? string.Empty)
+                    .ReplaceTokens(LanguageTokens.RequestStatus, statusMessage)
+                : statusMessage;
+
+            var builder = new DiscordMessageBuilder().WithContent(content);
+            foreach (var embed in message.Embeds)
+            {
+                builder.AddEmbed(embed);
+            }
+
+            await message.ModifyAsync(builder);
+            await message.DeleteAllReactionsAsync();
+        }
+
+        private bool IsAdminChannel(ulong channelId)
+        {
+            if (_currentSettings?.AdminChannelIds == null || !_currentSettings.AdminChannelIds.Any())
+            {
+                return false;
+            }
+
+            foreach (var adminChannelId in _currentSettings.AdminChannelIds)
+            {
+                if (ulong.TryParse(adminChannelId, out var parsedChannelId) && parsedChannelId == channelId)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool TryGetOverseerrRequestId(DiscordMessage message, out int requestId)

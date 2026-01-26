@@ -8,6 +8,7 @@ using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.SlashCommands;
 using Microsoft.Extensions.Options;
+using Requestrr.WebApi.RequestrrBot.Approvals;
 using Requestrr.WebApi.RequestrrBot.Locale;
 using Requestrr.WebApi.RequestrrBot.Movies;
 
@@ -18,15 +19,18 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
         private readonly DiscordInteraction _interactionContext;
         private readonly IMovieSearcher _movieSearcher;
         private readonly DiscordSettingsProvider _settingsProvider;
+        private readonly RequestApprovalRepository _approvalRepository;
 
         public DiscordMovieUserInterface(
             DiscordInteraction interactionContext,
             IMovieSearcher movieSearcher,
-            DiscordSettingsProvider settingsProvider)
+            DiscordSettingsProvider settingsProvider,
+            RequestApprovalRepository approvalRepository)
         {
             _interactionContext = interactionContext;
             _movieSearcher = movieSearcher;
             _settingsProvider = settingsProvider;
+            _approvalRepository = approvalRepository;
         }
 
         public async Task ShowMovieSelection(MovieRequest request, IReadOnlyList<Movie> movies)
@@ -286,7 +290,9 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                 .WithContent(message);
 
             await _interactionContext.EditOriginalResponseAsync(builder);
-            await SendAdminPendingMessageAsync(movie, embed, message);
+            var originalMessage = await _interactionContext.GetOriginalResponseAsync();
+            _approvalRepository.AddMessage(requestId, _interactionContext.User.Username, originalMessage.ChannelId, originalMessage.Id, false);
+            await SendAdminPendingMessageAsync(movie, embed, requestId);
         }
 
         public async Task AskForNotificationRequestAsync(Movie movie)
@@ -336,7 +342,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             return builder;
         }
 
-        private async Task SendAdminPendingMessageAsync(Movie movie, DiscordEmbed embed, string userMessage)
+        private async Task SendAdminPendingMessageAsync(Movie movie, DiscordEmbed embed, int requestId)
         {
             var settings = _settingsProvider.Provide();
             if (settings.AdminChannelIds == null || !settings.AdminChannelIds.Any())
@@ -344,11 +350,11 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                 return;
             }
 
-            var adminMessage = Language.Current.DiscordCommandRequestPendingAdmin
+            var adminPrompt = Language.Current.DiscordCommandRequestPendingAdmin
                 .ReplaceTokens(LanguageTokens.AuthorUsername, _interactionContext.User.Username);
 
             var builder = new DiscordMessageBuilder()
-                .WithContent(adminMessage)
+                .WithContent(adminPrompt)
                 .AddEmbed(embed);
 
             foreach (var channelId in settings.AdminChannelIds)
@@ -361,7 +367,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                 var channel = _interactionContext.Guild?.GetChannel(parsedChannelId);
                 if (channel != null)
                 {
-                    await channel.SendMessageAsync(builder);
+                    var adminRequestMessage = await channel.SendMessageAsync(builder);
+                    _approvalRepository.AddMessage(requestId, _interactionContext.User.Username, adminRequestMessage.ChannelId, adminRequestMessage.Id, true);
                 }
             }
         }
