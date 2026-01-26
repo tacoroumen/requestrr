@@ -468,7 +468,7 @@ function ChatClients(props) {
                       <Col lg="6">
                         <FormGroup>
                           <MultiDropdown
-                            name="Admin channel ids for approvals"
+                            name="Admin channel ids for request (approvals)"
                             create={true}
                             searchable={true}
                             placeholder="Enter discord channel ids for request approvals."
