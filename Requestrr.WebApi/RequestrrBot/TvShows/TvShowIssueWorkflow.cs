@@ -129,7 +129,7 @@ namespace Requestrr.WebApi.RequestrrBot.TvShows
         public async Task HandleTvShowSelectionAsync(int tvDbId)
         {
             var tvShow = await GetTvShowAsync(tvDbId);
-            await _userInterface.DisplayTvShowIssueDetailsAsync(new TvShowRequest(_user, _categoryId), tvShow, string.Empty);
+            await _userInterface.DisplayTvShowIssueDetailsAsync(new TvShowRequest(_user, _categoryId), tvShow, string.Empty, null, null);
         }
         
         
@@ -165,9 +165,11 @@ namespace Requestrr.WebApi.RequestrrBot.TvShows
         /// </summary>
         /// <param name="theMovieDbId"></param>
         /// <returns></returns>
-        public async Task HandleIssueTVSelectionAsync(int theTVDbId, string issue = "")
+        public async Task HandleIssueTVSelectionAsync(int theTVDbId, string issue = "", int? seasonNumber = null, int? episodeNumber = null)
         {
-            await HandleIssueTVSelectionAsync(await _searcher.GetTvShowDetailsAsync(new TvShowRequest(_user, _categoryId), theTVDbId), issue);
+            var tvShow = await GetTvShowAsync(theTVDbId);
+            tvShow = await EnsureSeasonEpisodesAsync(tvShow, seasonNumber);
+            await HandleIssueTVSelectionAsync(tvShow, issue, seasonNumber, episodeNumber);
         }
 
 
@@ -177,9 +179,9 @@ namespace Requestrr.WebApi.RequestrrBot.TvShows
         /// <param name="tvShow"></param>
         /// <param name="issue"></param>
         /// <returns></returns>
-        private async Task HandleIssueTVSelectionAsync(TvShow tvShow, string issue = "")
+        private async Task HandleIssueTVSelectionAsync(TvShow tvShow, string issue = "", int? seasonNumber = null, int? episodeNumber = null)
         {
-            await _userInterface.DisplayTvShowIssueDetailsAsync(new TvShowRequest(_user, _categoryId), tvShow, issue);
+            await _userInterface.DisplayTvShowIssueDetailsAsync(new TvShowRequest(_user, _categoryId), tvShow, issue, seasonNumber, episodeNumber);
         }
 
 
@@ -189,12 +191,16 @@ namespace Requestrr.WebApi.RequestrrBot.TvShows
         /// <param name="tvShow"></param>
         /// <param name="issue"></param>
         /// <returns></returns>
-        public async Task HandleIssueTvShowSendModalAsync(int theTVDbId, string issue) //TvShow tvShow, string issue = "")
+        public async Task HandleIssueTvShowSendModalAsync(int theTVDbId, string issue, int? seasonNumber = null, int? episodeNumber = null) //TvShow tvShow, string issue = "")
         {
+            var tvShow = await GetTvShowAsync(theTVDbId);
+            tvShow = await EnsureSeasonEpisodesAsync(tvShow, seasonNumber);
             await _userInterface.DisplayTvShowIssueModalAsync(
                 new TvShowRequest(_user, _categoryId),
-                await _searcher.GetTvShowDetailsAsync(new TvShowRequest(_user, _categoryId), theTVDbId),
-                issue
+                tvShow,
+                issue,
+                seasonNumber,
+                episodeNumber
             );
         }
 
@@ -211,18 +217,67 @@ namespace Requestrr.WebApi.RequestrrBot.TvShows
 
             int tvShowId = int.Parse(values[3]);
             string issue = values[4];
+            int seasonNumber = values.Length > 5 ? int.Parse(values[5]) : -1;
+            int episodeNumber = values.Length > 6 ? int.Parse(values[6]) : -1;
 
             bool result = false;
 
             var request = new TvShowRequest(_user, _categoryId);
+            var issueDescription = PrependIssueLocation(textBox.Value, seasonNumber, episodeNumber);
 
             //Check if searcher supports issues
             if (_searcher is ITvShowIssueRequester)
             {
-                result = await ((ITvShowIssueRequester)_requester).SubmitTvShowIssueAsync(request, tvShowId, issue, textBox.Value);
+                result = await ((ITvShowIssueRequester)_requester).SubmitTvShowIssueAsync(request, tvShowId, issue, issueDescription);
             }
 
             await _userInterface.CompleteTvShowIssueModalRequestAsync(await _searcher.GetTvShowDetailsAsync(request, tvShowId), result);
+        }
+
+        private string PrependIssueLocation(string description, int seasonNumber, int episodeNumber)
+        {
+            if (seasonNumber <= -1 && episodeNumber <= -1)
+            {
+                return description;
+            }
+
+            string location;
+
+            if (seasonNumber == 0)
+            {
+                location = "All Seasons";
+            }
+            else if (episodeNumber > 0)
+            {
+                location = $"Season {seasonNumber} Episode {episodeNumber}";
+            }
+            else
+            {
+                location = $"Season {seasonNumber}";
+            }
+
+            return $"{location}\n{description}";
+        }
+
+        private async Task<TvShow> EnsureSeasonEpisodesAsync(TvShow tvShow, int? seasonNumber)
+        {
+            if (tvShow == null || seasonNumber == null || seasonNumber <= 0)
+            {
+                return tvShow;
+            }
+
+            var season = tvShow.Seasons.OfType<NormalTvSeason>().FirstOrDefault(x => x.SeasonNumber == seasonNumber);
+            if (season == null || (season.Episodes?.Any() ?? false))
+            {
+                return tvShow;
+            }
+
+            if (_searcher is DownloadClients.Overseerr.OverseerrClient overseerrClient)
+            {
+                season.Episodes = await overseerrClient.GetSeasonEpisodesAsync(tvShow.TheTvDbId, seasonNumber.Value);
+            }
+
+            return tvShow;
         }
     }
 }

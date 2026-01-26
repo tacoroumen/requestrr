@@ -160,7 +160,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
         /// <param name="tvShow"></param>
         /// <param name="issue"></param>
         /// <returns></returns>
-        public async Task DisplayTvShowIssueDetailsAsync(TvShowRequest request, TvShow tvShow, string issue = "")
+        public async Task DisplayTvShowIssueDetailsAsync(TvShowRequest request, TvShow tvShow, string issue, int? seasonNumber, int? episodeNumber)
         {
             //Validate that the TV issue searcher is not null
             if (_tvShowIssue == null)
@@ -170,25 +170,67 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             }
 
             var message = Language.Current.DiscordCommandTvIssueSelect;
-
-            //Setup the dropdown of issues
-            var options = _tvShowIssue.IssueTypes.Select(x => new DiscordSelectComponentOption(LimitStringSize(x.Key), $"{request.CategoryId}/{tvShow.TheTvDbId}/{x.Value}", null, x.Value.ToString() == issue)).ToList();
-            DiscordSelectComponent select = new DiscordSelectComponent($"TIRS/{_interactionContext.User.Id}/{request.CategoryId}/{tvShow.TheTvDbId}", LimitStringSize(Language.Current.DiscordCommandIssueHelpDropdown), options);
-
-
             var embed = GenerateTvShowDetailsAsync(tvShow);
+            var builder = new DiscordWebhookBuilder().AddEmbed(embed);
 
-            DiscordWebhookBuilder builder = new DiscordWebhookBuilder().AddEmbed(embed);
-            if ((await _interactionContext.GetOriginalResponseAsync()).FilterComponents<DiscordSelectComponent>().ToList().Count > 1)
+            var currentSelectors = (await _interactionContext.GetOriginalResponseAsync()).FilterComponents<DiscordSelectComponent>().ToList();
+            var previousTvSelector = currentSelectors.FirstOrDefault(x => IsIssueTvShowSelector(x));
+            if (previousTvSelector != null)
             {
-                builder = await AddPreviousDropdownsAsync(tvShow, builder);
+                var tvSelector = new DiscordSelectComponent(previousTvSelector.CustomId, GetFormatedTvShowTitle(tvShow), previousTvSelector.Options);
+                builder.AddComponents(tvSelector);
             }
-            builder.AddComponents(select).WithContent(message);
 
-            //If issue has been selected, add submit issue button to propmt for description
-            if (issue != string.Empty)
+            var selectedSeasonNumber = seasonNumber ?? 0;
+            var selectedEpisodeNumber = episodeNumber ?? -1;
+            var issueValue = string.IsNullOrWhiteSpace(issue) ? "0" : issue;
+
+            var seasonOptions = BuildIssueSeasonOptions(tvShow, selectedSeasonNumber);
+            if (seasonOptions.Any())
             {
-                DiscordButtonComponent button = new DiscordButtonComponent(ButtonStyle.Primary, $"TIRB/{_interactionContext.User.Id}/{request.CategoryId}/{tvShow.TheTvDbId}/{issue}/Modal", Language.Current.DiscordCommandIssueButton, false, null);
+                var seasonSelect = new DiscordSelectComponent(
+                    $"TIRSS/{_interactionContext.User.Id}/{request.CategoryId}/{tvShow.TheTvDbId}/{issueValue}/{selectedEpisodeNumber}",
+                    LimitStringSize(Language.Current.DiscordCommandTvRequestHelpSeasonsDropdown),
+                    seasonOptions
+                );
+                builder.AddComponents(seasonSelect);
+            }
+
+            if (selectedSeasonNumber > 0)
+            {
+                var episodeOptions = BuildIssueEpisodeOptions(tvShow, selectedSeasonNumber, selectedEpisodeNumber);
+                if (episodeOptions.Any())
+                {
+                    var episodeSelect = new DiscordSelectComponent(
+                        $"TIRSE/{_interactionContext.User.Id}/{request.CategoryId}/{tvShow.TheTvDbId}/{issueValue}/{selectedSeasonNumber}",
+                        LimitStringSize(Language.Current.DiscordCommandTvIssueHelpEpisodesDropdown),
+                        episodeOptions
+                    );
+                    builder.AddComponents(episodeSelect);
+                }
+            }
+
+            var issueOptions = _tvShowIssue.IssueTypes
+                .Select(x => new DiscordSelectComponentOption(LimitStringSize(x.Key), x.Value.ToString(), null, x.Value.ToString() == issue))
+                .ToList();
+            var issueSelect = new DiscordSelectComponent(
+                $"TIRS/{_interactionContext.User.Id}/{request.CategoryId}/{tvShow.TheTvDbId}/{selectedSeasonNumber}/{selectedEpisodeNumber}",
+                LimitStringSize(Language.Current.DiscordCommandIssueHelpDropdown),
+                issueOptions
+            );
+
+            builder.AddComponents(issueSelect).WithContent(message);
+
+            //If issue has been selected, add submit issue button to prompt for description
+            if (!string.IsNullOrWhiteSpace(issue))
+            {
+                var button = new DiscordButtonComponent(
+                    ButtonStyle.Primary,
+                    $"TIRB/{_interactionContext.User.Id}/{request.CategoryId}/{tvShow.TheTvDbId}/{issue}/{selectedSeasonNumber}/{selectedEpisodeNumber}/Modal",
+                    Language.Current.DiscordCommandIssueButton,
+                    false,
+                    null
+                );
                 builder.AddComponents(button);
             }
 
@@ -210,10 +252,11 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
         /// <param name="movie"></param>
         /// <param name="issue"></param>
         /// <returns></returns>
-        public async Task DisplayTvShowIssueModalAsync(TvShowRequest request, TvShow tvShow, string issue) //MovieRequest request, Movie movie, string issue)
+        public async Task DisplayTvShowIssueModalAsync(TvShowRequest request, TvShow tvShow, string issue, int? seasonNumber, int? episodeNumber) //MovieRequest request, Movie movie, string issue)
         {
             DiscordInteractionResponseBuilder builder = new DiscordInteractionResponseBuilder();
 
+            var locationSuffix = GetIssueLocationSuffix(seasonNumber, episodeNumber);
             string label = CreateInteractionString(
                 Language.Current.DiscordCommandIssueInteractionLabel,
                 LanguageTokens.IssueLabel,
@@ -224,13 +267,15 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             string title = CreateInteractionString(
                 Language.Current.DiscordCommandIssueInteractionTitle,
                 LanguageTokens.IssueTitle,
-                tvShow.Title,
+                $"{tvShow.Title}{locationSuffix}",
                 45
             );
 
+            var seasonValue = seasonNumber ?? -1;
+            var episodeValue = episodeNumber ?? -1;
             TextInputComponent textBox = new TextInputComponent(
                 label,
-                $"TIRC/{_interactionContext.User.Id}/{request.CategoryId}/{tvShow.TheTvDbId}/{issue}",
+                $"TIRC/{_interactionContext.User.Id}/{request.CategoryId}/{tvShow.TheTvDbId}/{issue}/{seasonValue}/{episodeValue}",
                 placeholder,
                 string.Empty,
                 true,
@@ -464,6 +509,80 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
         private string LimitStringSize(string value, int limit = 100)
         {
             return value.Count() > limit ? value[..(limit - 3)] + "..." : value;
+        }
+
+        private bool IsIssueTvShowSelector(DiscordSelectComponent selector)
+        {
+            if (!selector.CustomId.StartsWith("TIRS", true, null))
+            {
+                return false;
+            }
+
+            return selector.Options.Any(x => x.Value.Split("/").Length == 2);
+        }
+
+        private List<DiscordSelectComponentOption> BuildIssueSeasonOptions(TvShow tvShow, int selectedSeasonNumber)
+        {
+            var options = new List<DiscordSelectComponentOption>();
+            var seasons = tvShow.Seasons ?? Array.Empty<TvSeason>();
+
+            if (!seasons.Any(x => x.SeasonNumber == 0))
+            {
+                options.Add(new DiscordSelectComponentOption(LimitStringSize(Language.Current.DiscordEmbedTvAllSeasons), "0", null, selectedSeasonNumber == 0));
+            }
+
+            options.AddRange(seasons.Select(x => new DiscordSelectComponentOption(
+                GetFormattedSeasonName(tvShow, x),
+                x.SeasonNumber.ToString(),
+                null,
+                x.SeasonNumber == selectedSeasonNumber
+            )));
+
+            return options;
+        }
+
+        private List<DiscordSelectComponentOption> BuildIssueEpisodeOptions(TvShow tvShow, int selectedSeasonNumber, int selectedEpisodeNumber)
+        {
+            var seasons = tvShow.Seasons ?? Array.Empty<TvSeason>();
+            var season = seasons.FirstOrDefault(x => x.SeasonNumber == selectedSeasonNumber);
+            var episodes = season?.Episodes ?? Array.Empty<TvEpisode>();
+
+            if (!episodes.Any())
+            {
+                return new List<DiscordSelectComponentOption>();
+            }
+
+            var options = new List<DiscordSelectComponentOption>
+            {
+                new DiscordSelectComponentOption(LimitStringSize(Language.Current.DiscordCommandTvIssueHelpEpisodesFullSeason), "0", null, selectedEpisodeNumber <= 0)
+            };
+
+            foreach (var episode in episodes.OrderBy(x => x.EpisodeNumber).Take(24))
+            {
+                options.Add(new DiscordSelectComponentOption($"Episode {episode.EpisodeNumber}", episode.EpisodeNumber.ToString(), null, episode.EpisodeNumber == selectedEpisodeNumber));
+            }
+
+            return options;
+        }
+
+        private string GetIssueLocationSuffix(int? seasonNumber, int? episodeNumber)
+        {
+            if (seasonNumber == null || seasonNumber < 0)
+            {
+                return string.Empty;
+            }
+
+            if (seasonNumber == 0)
+            {
+                return " - All Seasons";
+            }
+
+            if (episodeNumber != null && episodeNumber > 0)
+            {
+                return $" - S{seasonNumber}E{episodeNumber}";
+            }
+
+            return $" - S{seasonNumber}";
         }
 
         private string GetFormattedSeasonName(TvShow tvShow, TvSeason season)

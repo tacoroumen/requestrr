@@ -112,6 +112,8 @@
   "Discord.Command.Movie.Issue.Success": "Je probleemmelding voor **[MovieTitle]** is succesvol verzonden!",
   "Discord.Command.Movie.Issue.Failed": "Het indienen van je probleemmelding voor **[MovieTitle]** is mislukt!",
   "Discord.Command.Tv.Issue.Select": "Selecteer hieronder de tv‑serie en het probleem.",
+  "Discord.Command.Tv.Issue.Help.Episodes.Dropdown": "Selecteer hier een aflevering",
+  "Discord.Command.Tv.Issue.Help.Episodes.FullSeason": "Volledig seizoen",
   "Discord.Command.Tv.Issue.Success": "Je probleemmelding voor **[TvShowTitle]** is succesvol verzonden!",
   "Discord.Command.Tv.Issue.Failed": "Het indienen van je probleemmelding voor **[TvShowTitle]** is mislukt!",
   "Discord.Command.Issue.Name": "probleem",

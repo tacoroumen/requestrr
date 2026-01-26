@@ -112,6 +112,8 @@
     "Discord.Command.Movie.Issue.Success": "Tu problema para **[MovieTitle]** ha sido enviado correctamente!",
     "Discord.Command.Movie.Issue.Failed": "Tu problema para **[MovieTitle]** falló al ser enviado!",
     "Discord.Command.Tv.Issue.Select": "Por favor elige la serie y el problema debajo de este mensaje.",
+    "Discord.Command.Tv.Issue.Help.Episodes.Dropdown": "Selecciona un episodio aquí",
+    "Discord.Command.Tv.Issue.Help.Episodes.FullSeason": "Toda la temporada",
     "Discord.Command.Tv.Issue.Success": "Tu problema para **[TvShowTitle]** ha sido enviado correctamente!",
     "Discord.Command.Tv.Issue.Failed": "Tu problema para **[TvShowTitle]** falló al ser enviado!",
     "Discord.Command.Issue.Name": "problema",

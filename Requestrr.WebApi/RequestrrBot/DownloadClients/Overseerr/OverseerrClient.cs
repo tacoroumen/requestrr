@@ -660,6 +660,48 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Overseerr
             }
         }
 
+        public async Task<TvEpisode[]> GetSeasonEpisodesAsync(int tvId, int seasonNumber)
+        {
+            try
+            {
+                var response = await HttpGetAsync($"{BaseURL}tv/{tvId}/season/{seasonNumber}");
+                await response.ThrowIfNotSuccessfulAsync("OverseerrGetTvSeasonEpisodes failed", x => x.error);
+
+                var jsonResponse = await response.Content.ReadAsStringAsync();
+                var jsonSeason = JObject.Parse(jsonResponse);
+                var episodesToken = jsonSeason["episodes"] ?? jsonSeason["Episodes"];
+
+                if (episodesToken == null)
+                {
+                    return Array.Empty<TvEpisode>();
+                }
+
+                var episodes = episodesToken
+                    .Select(x =>
+                    {
+                        var numberToken = x["episodeNumber"] ?? x["episode_number"] ?? x["number"];
+                        var episodeNumber = numberToken == null ? 0 : numberToken.Value<int>();
+
+                        return new TvEpisode
+                        {
+                            EpisodeNumber = episodeNumber,
+                            IsAvailable = false,
+                            IsRequested = false
+                        };
+                    })
+                    .Where(x => x.EpisodeNumber > 0)
+                    .OrderBy(x => x.EpisodeNumber)
+                    .ToArray();
+
+                return episodes;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"An error occurred while getting season {seasonNumber} episodes for tv id {tvId} from Overseerr: " + ex.Message);
+                return Array.Empty<TvEpisode>();
+            }
+        }
+
 
         public async Task<TvShow> GetTvShowDetailsAsync(TvShowRequest request, int theTvDbId)
         {
@@ -959,7 +1001,8 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Overseerr
                 {
                     SeasonNumber = x.SeasonNumber,
                     IsAvailable = x.Status == MediaStatus.AVAILABLE,
-                    IsRequested = ConvertRequestedState(x.Status)
+                    IsRequested = ConvertRequestedState(x.Status),
+                    Episodes = Array.Empty<TvEpisode>()
                 }).ToArray();
 
             if (jsonMedia.MediaInfo != null)

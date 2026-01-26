@@ -520,6 +520,7 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Sonarr
                         SeasonNumber = x.seasonNumber,
                         IsAvailable = tvEpisodes.First().IsAvailable,
                         IsRequested = allEpisodesDownloaded ? RequestedState.Full : partiallyDownloaded ? RequestedState.Partial : RequestedState.None,
+                        Episodes = tvEpisodes
                     };
                 }
                 else if (jsonTvShow.ExistsInSonarr())
@@ -529,6 +530,7 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Sonarr
                         SeasonNumber = x.seasonNumber,
                         IsAvailable = false,
                         IsRequested = isTvShowMonitored ? RequestedState.Full : RequestedState.None,
+                        Episodes = Array.Empty<TvEpisode>()
                     };
                 }
                 else
@@ -537,7 +539,8 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Sonarr
                     {
                         SeasonNumber = x.seasonNumber,
                         IsAvailable = false,
-                        IsRequested = RequestedState.None
+                        IsRequested = RequestedState.None,
+                        Episodes = Array.Empty<TvEpisode>()
                     };
                 }
 

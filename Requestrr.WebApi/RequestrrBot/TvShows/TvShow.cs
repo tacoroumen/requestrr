@@ -1,5 +1,7 @@
 ﻿using System.Linq;
 
+using System;
+
 namespace Requestrr.WebApi.RequestrrBot.TvShows
 {
     public class SearchedTvShow
@@ -61,6 +63,7 @@ namespace Requestrr.WebApi.RequestrrBot.TvShows
         public bool IsAvailable { get; set; }
         public int SeasonNumber { get; set; }
         public RequestedState IsRequested { get; set; }
+        public TvEpisode[] Episodes { get; set; } = Array.Empty<TvEpisode>();
     }
 
     public class TvEpisode
