@@ -69,7 +69,7 @@ namespace Requestrr.WebApi.RequestrrBot
             _lidarrDownloadClient = new LidarrClient(serviceProvider.Get<IHttpClientFactory>(), serviceProvider.Get<ILogger<LidarrClient>>(), serviceProvider.Get<LidarrSettingsProvider>());
             _movieWorkflowFactory = new MovieWorkflowFactory(_discordSettingsProvider, _movieNotificationRepository, _overseerrClient, _ombiDownloadClient, _radarrDownloadClient);
             _tvShowWorkflowFactory = new TvShowWorkflowFactory(serviceProvider.Get<TvShowsSettingsProvider>(), _discordSettingsProvider, _tvShowNotificationRepository, _overseerrClient, _ombiDownloadClient, _sonarrDownloadClient);
-            _musicWorkflowFactory = new MusicWorkflowFactory(_discordSettingsProvider, _musicNotificationRepository, _lidarrDownloadClient);
+            _musicWorkflowFactory = new MusicWorkflowFactory(_discordSettingsProvider, _musicNotificationRepository, _lidarrDownloadClient, serviceProvider.Get<MusicSettingsProvider>());
         }
 
         public async void Start()
@@ -638,9 +638,23 @@ namespace Requestrr.WebApi.RequestrrBot
                     int categoryId = int.Parse(values[0]);
                     string artistId = values[1];
                     string albumId = values[2];
+                    string releaseType = values.Length >= 4 ? values[3] : null;
 
                     await CreateMusicRequestWorkFlow(e, categoryId)
-                        .HandleMusicAlbumSelectionAsync(artistId, albumId);
+                        .HandleMusicAlbumSelectionAsync(artistId, albumId, releaseType);
+                }
+            }
+            else if (e.Id.ToLower().StartsWith("murlt"))
+            {
+                if (e.Values != null && e.Values.Any())
+                {
+                    string[] values = e.Values.Single().Split("/");
+                    int categoryId = int.Parse(values[0]);
+                    string artistId = values[1];
+                    string releaseType = values[2];
+
+                    await CreateMusicRequestWorkFlow(e, categoryId)
+                        .ShowMusicAlbumPageAsync(artistId, 0, releaseType);
                 }
             }
             else if (e.Id.ToLower().StartsWith("murca"))
@@ -656,16 +670,17 @@ namespace Requestrr.WebApi.RequestrrBot
                 var categoryId = int.Parse(splitValues[0]);
                 var artistId = splitValues[1];
                 var page = int.Parse(splitValues[2]);
+                var releaseType = splitValues.Length >= 4 ? splitValues[3] : null;
 
                 await CreateMusicRequestWorkFlow(e, categoryId)
-                    .ShowMusicAlbumPageAsync(artistId, page);
+                    .ShowMusicAlbumPageAsync(artistId, page, releaseType);
             }
             else if (e.Id.ToLower().StartsWith("murlc"))
             {
                 var splitValues = e.Id.Split("/").Skip(2).ToArray();
                 var categoryId = int.Parse(splitValues[0]);
-                var artistId = splitValues[1];
-                var albumId = splitValues[2];
+                var artistId = ExpandGuid(splitValues[1]);
+                var albumId = ExpandGuid(splitValues[2]);
 
                 await CreateMusicRequestWorkFlow(e, categoryId)
                     .RequestMusicAlbumAsync(artistId, albumId);
@@ -757,6 +772,14 @@ namespace Requestrr.WebApi.RequestrrBot
         {
             return _tvShowWorkflowFactory
                 .CreateNotificationWorkflow(e.Interaction);
+        }
+
+        private static string ExpandGuid(string value)
+        {
+            if (Guid.TryParseExact(value, "N", out Guid guid))
+                return guid.ToString("D");
+
+            return value;
         }
     }
 }

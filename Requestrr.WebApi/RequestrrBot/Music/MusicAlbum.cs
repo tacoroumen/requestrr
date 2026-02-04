@@ -13,6 +13,7 @@ namespace Requestrr.WebApi.RequestrrBot.Music
         public string ArtistName { get; set; }
 
         public DateTime? ReleaseDate { get; set; }
+        public string ReleaseType { get; set; }
 
         public bool Available { get; set; }
         public bool Monitored { get; set; }

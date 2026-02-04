@@ -174,6 +174,39 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
             throw new Exception("An error occurred while getting Lidarr metadata profiles");
         }
 
+        public static async Task<IList<JSONMetadataProfile>> GetMetadataProfilesDetailed(HttpClient httpClient, ILogger<LidarrClient> logger, LidarrSettings settings)
+        {
+            try
+            {
+                HttpResponseMessage response = await HttpGetAsync(httpClient, settings, $"{GetBaseURL(settings)}/metadataprofile");
+                string jsonResponse = await response.Content.ReadAsStringAsync();
+                JArray profiles = JArray.Parse(jsonResponse);
+
+                return profiles.Select(x => new JSONMetadataProfile
+                {
+                    id = x["id"]?.Value<int>() ?? 0,
+                    name = x["name"]?.Value<string>() ?? string.Empty,
+                    primaryTypes = GetMetadataPrimaryTypes(x),
+                    secondaryTypes = GetMetadataSecondaryTypes(x)
+                        .Select(NormalizeSecondaryTypeValue)
+                        .Where(v => v != null)
+                        .Distinct(StringComparer.InvariantCultureIgnoreCase)
+                        .ToArray(),
+                    releaseStatuses = GetMetadataReleaseStatuses(x)
+                        .Select(NormalizeReleaseStatusValue)
+                        .Where(v => v != null)
+                        .Distinct(StringComparer.InvariantCultureIgnoreCase)
+                        .ToArray()
+                }).ToArray();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "An error while getting detailed Lidarr metadata profiles: " + ex.Message);
+            }
+
+            throw new Exception("An error occurred while getting detailed Lidarr metadata profiles");
+        }
+
 
 
         public static async Task<IList<JSONTag>> GetTags(HttpClient httpClient, ILogger<LidarrClient> logger, LidarrSettings settings)
@@ -280,9 +313,9 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
         /// <exception cref="Exception"></exception>
         public async Task<IReadOnlyList<MusicArtist>> SearchMusicForArtistAsync(MusicRequest request, string artistName)
         {
+            string searchTerm = Uri.EscapeDataString(artistName.ToLower().Trim());
             try
             {
-                string searchTerm = Uri.EscapeDataString(artistName.ToLower().Trim());
                 HttpResponseMessage response = await HttpGetAsync($"{BaseURL}/artist/lookup?term={searchTerm}");
                 await response.ThrowIfNotSuccessfulAsync("LidarrMusicArtistLookup failed", x => x.error);
 
@@ -294,10 +327,33 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
             }
             catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Lidarr artist lookup failed, attempting local artist fallback search: " + ex.Message);
+            }
+
+            try
+            {
+                return await SearchExistingArtistsByTermAsync(searchTerm);
+            }
+            catch (Exception ex)
+            {
                 _logger.LogError(ex, "An error occurred while searching for music artist with Lidarr: " + ex.Message);
             }
 
             throw new Exception("An error occurred while searching for music artist with Lidarr");
+        }
+
+        private async Task<IReadOnlyList<MusicArtist>> SearchExistingArtistsByTermAsync(string searchTerm)
+        {
+            HttpResponseMessage response = await HttpGetAsync($"{BaseURL}/artist?term={searchTerm}");
+            await response.ThrowIfNotSuccessfulAsync("LidarrMusicArtistLocalLookup failed", x => x.error);
+
+            string jsonResponse = await response.Content.ReadAsStringAsync();
+            List<JSONMusicArtist> artists = JsonConvert.DeserializeObject<List<JSONMusicArtist>>(jsonResponse) ?? new List<JSONMusicArtist>();
+
+            return artists
+                .Where(x => x != null)
+                .Select(ConvertToMusic)
+                .ToArray();
         }
 
         public async Task<IReadOnlyList<MusicAlbum>> SearchMusicAlbumsForArtistAsync(MusicRequest request, MusicArtist artist)
@@ -331,15 +387,28 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
 
                     string jsonResponse = await response.Content.ReadAsStringAsync();
                     jsonAlbums = JsonConvert.DeserializeObject<List<JSONMusicAlbum>>(jsonResponse);
-                
-                    return jsonAlbums
-                        .Where(x => x != null && IsFullAlbum(x))
+
+                    ReleaseFilters filters = GetReleaseFilters(request.CategoryId);
+                    var filteredAlbums = jsonAlbums
+                        .Where(x => x != null && IsRequestedReleaseType(x, filters))
                         .Select(x => ConvertToAlbum(x, artist))
                         .OrderByDescending(x => x.ReleaseDate ?? DateTime.MinValue)
                         .ToArray();
+
+                    _logger.LogWarning(
+                        "Lidarr albums for artist \"{ArtistName}\" ({ArtistId}): total={TotalAlbums}, filtered={FilteredAlbums}, primary={PrimaryTypes}, secondary={SecondaryTypes}, status={ReleaseStatuses}",
+                        artist.ArtistName,
+                        artist.ArtistId,
+                        jsonAlbums?.Count ?? 0,
+                        filteredAlbums.Length,
+                        string.Join(", ", filters.PrimaryTypes.OrderBy(x => x)),
+                        string.Join(", ", filters.SecondaryTypes.OrderBy(x => x)),
+                        string.Join(", ", filters.ReleaseStatuses.OrderBy(x => x)));
+
+                    return filteredAlbums;
                 }
 
-                return await SearchMusicBrainzAlbumsForArtistAsync(artist);
+                return await SearchMusicBrainzAlbumsForArtistAsync(artist, request.CategoryId);
             }
             catch (Exception ex)
             {
@@ -351,7 +420,7 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
 
 
 
-        private async Task<IReadOnlyList<MusicAlbum>> SearchMusicBrainzAlbumsForArtistAsync(MusicArtist artist)
+        private async Task<IReadOnlyList<MusicAlbum>> SearchMusicBrainzAlbumsForArtistAsync(MusicArtist artist, int categoryId)
         {
             if (artist == null || string.IsNullOrWhiteSpace(artist.ArtistId))
                 return Array.Empty<MusicAlbum>();
@@ -360,12 +429,13 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
             var albums = new List<MusicAlbum>();
             int offset = 0;
             int? totalCount = null;
+            ReleaseFilters filters = GetReleaseFilters(categoryId);
 
             try
             {
                 while (totalCount == null || offset < totalCount.Value)
                 {
-                    string url = $"https://musicbrainz.org/ws/2/release-group?artist={artist.ArtistId}&fmt=json&limit={pageSize}&offset={offset}&type=album";
+                    string url = $"https://musicbrainz.org/ws/2/release-group?artist={artist.ArtistId}&fmt=json&inc=artist-credits&limit={pageSize}&offset={offset}";
                     MusicBrainzReleaseGroupResponse response = await FetchMusicBrainzReleaseGroupsAsync(url);
 
                     if (response == null || response.ReleaseGroups == null || response.ReleaseGroups.Count == 0)
@@ -375,7 +445,7 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
 
                     foreach (var releaseGroup in response.ReleaseGroups)
                     {
-                        if (!IsFullAlbum(releaseGroup))
+                        if (!IsRequestedReleaseType(releaseGroup, artist, filters))
                             continue;
 
                         albums.Add(ConvertToAlbum(releaseGroup, artist));
@@ -526,40 +596,88 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
             return null;
         }
 
-        private bool IsFullAlbum(JSONMusicAlbum album)
+        private bool IsRequestedReleaseType(JSONMusicAlbum album, ReleaseFilters filters)
         {
             if (album == null)
                 return false;
 
-            if (!string.Equals(album.AlbumType, "Album", StringComparison.InvariantCultureIgnoreCase))
+            if (!IsAllowedByMetadataProfileRules(album.AlbumType, album.SecondaryTypes, filters))
                 return false;
 
-            if (album.SecondaryTypes != null && album.SecondaryTypes.Any(x =>
-                x.Equals("EP", StringComparison.InvariantCultureIgnoreCase) ||
-                x.Equals("Single", StringComparison.InvariantCultureIgnoreCase)))
-            {
+            if (!HasAllowedReleaseStatus(album.Releases, filters))
                 return false;
-            }
 
-            return true;
+            string releaseType = DetermineReleaseType(album.AlbumType, album.SecondaryTypes);
+            if (releaseType == null)
+                return false;
+
+            if (!filters.PrimaryTypes.Any())
+                return true;
+
+            return filters.PrimaryTypes.Contains(releaseType);
         }
 
-        private bool IsFullAlbum(MusicBrainzReleaseGroup releaseGroup)
+        private bool IsRequestedReleaseType(MusicBrainzReleaseGroup releaseGroup, MusicArtist requestedArtist, ReleaseFilters filters)
         {
             if (releaseGroup == null)
                 return false;
 
-            if (!string.Equals(releaseGroup.PrimaryType, "Album", StringComparison.InvariantCultureIgnoreCase))
+            if (!IsPrimaryArtistMatch(releaseGroup, requestedArtist))
                 return false;
 
-            if (releaseGroup.SecondaryTypes != null && releaseGroup.SecondaryTypes.Any(x =>
-                x.Equals("EP", StringComparison.InvariantCultureIgnoreCase) ||
-                x.Equals("Single", StringComparison.InvariantCultureIgnoreCase)))
-            {
+            if (!IsAllowedByMetadataProfileRules(releaseGroup.PrimaryType, releaseGroup.SecondaryTypes, filters))
                 return false;
+
+            string releaseType = DetermineReleaseType(releaseGroup.PrimaryType, releaseGroup.SecondaryTypes);
+            if (releaseType == null)
+                return false;
+
+            if (!filters.PrimaryTypes.Any())
+                return true;
+
+            return filters.PrimaryTypes.Contains(releaseType);
+        }
+
+        private static bool IsPrimaryArtistMatch(MusicBrainzReleaseGroup releaseGroup, MusicArtist requestedArtist)
+        {
+            if (releaseGroup == null || requestedArtist == null)
+                return false;
+
+            MusicBrainzArtistCredit primaryCredit = releaseGroup.ArtistCredit?.FirstOrDefault();
+            if (primaryCredit == null)
+                return false;
+
+            string primaryArtistId = primaryCredit.Artist?.Id;
+            if (!string.IsNullOrWhiteSpace(primaryArtistId) && !string.IsNullOrWhiteSpace(requestedArtist.ArtistId))
+                return primaryArtistId.Equals(requestedArtist.ArtistId, StringComparison.InvariantCultureIgnoreCase);
+
+            if (!string.IsNullOrWhiteSpace(primaryCredit.Name) && !string.IsNullOrWhiteSpace(requestedArtist.ArtistName))
+            {
+                string normalizedPrimaryName = NormalizeArtistName(primaryCredit.Name);
+                string normalizedRequestedName = NormalizeArtistName(requestedArtist.ArtistName);
+
+                if (normalizedPrimaryName.Equals(normalizedRequestedName, StringComparison.InvariantCultureIgnoreCase))
+                    return true;
+
+                if (normalizedPrimaryName.Contains(normalizedRequestedName, StringComparison.InvariantCultureIgnoreCase))
+                    return true;
             }
 
-            return true;
+            return false;
+        }
+
+        private static string NormalizeArtistName(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            var chars = value
+                .Trim()
+                .ToLowerInvariant()
+                .Where(c => char.IsLetterOrDigit(c) || char.IsWhiteSpace(c))
+                .ToArray();
+
+            return string.Join(" ", new string(chars).Split(' ', StringSplitOptions.RemoveEmptyEntries));
         }
 
 
@@ -599,26 +717,23 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
                     existingArtist = await SearchMusicForArtistIdAsync(request, artist.ArtistId);
                 }
 
-                JSONMusicAlbum existingAlbum = await FindExistingAlbumByMusicDbIdAsync(album.AlbumId, existingArtist.DownloadClientId);
-                if (existingAlbum == null)
-                    existingAlbum = await FindAlbumByForeignIdAsync(album.AlbumId);
+                if (string.IsNullOrWhiteSpace(existingArtist?.DownloadClientId))
+                    throw new Exception("Artist was not created in Lidarr.");
+
+                await EnsureArtistMonitoredForAlbumRequestsAsync(existingArtist.DownloadClientId);
+
+                JSONMusicAlbum existingAlbum = await EnsureAlbumExistsInLidarrAsync(album.AlbumId, existingArtist.DownloadClientId);
 
                 if (existingAlbum == null || !existingAlbum.Id.HasValue)
                     throw new Exception("Album not found in Lidarr.");
 
-                HttpResponseMessage response = await HttpGetAsync($"{BaseURL}/album/{existingAlbum.Id.Value}");
-                await response.ThrowIfNotSuccessfulAsync("LidarrGetAlbum failed", x => x.error);
-
-                string albumJson = await response.Content.ReadAsStringAsync();
-                JObject lidarrAlbum = JObject.Parse(albumJson);
-                lidarrAlbum["monitored"] = true;
-
-                response = await HttpPutAsync($"{BaseURL}/album/{existingAlbum.Id.Value}", lidarrAlbum.ToString(Formatting.None));
-                await response.ThrowIfNotSuccessfulAsync("LidarrUpdateAlbum failed", x => x.error);
+                bool albumMonitored = await EnsureAlbumMonitoredAsync(existingAlbum.Id.Value);
+                if (!albumMonitored)
+                    throw new Exception("Lidarr did not persist album monitoring state.");
 
                 if (_lidarrSettings.SearchNewRequests)
                 {
-                    response = await HttpPostAsync($"{BaseURL}/command", JsonConvert.SerializeObject(new
+                    HttpResponseMessage response = await HttpPostAsync($"{BaseURL}/command", JsonConvert.SerializeObject(new
                     {
                         name = "albumSearch",
                         albumIds = new[] { existingAlbum.Id.Value }
@@ -626,6 +741,13 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
 
                     await response.ThrowIfNotSuccessfulAsync("LidarrAlbumSearchCommand failed", x => x.error);
                 }
+
+                // Some Lidarr instances can flip album monitoring state during refresh/search cycles.
+                // Enforce it once more before returning success.
+                await Task.Delay(750);
+                albumMonitored = await EnsureAlbumMonitoredAsync(existingAlbum.Id.Value);
+                if (!albumMonitored)
+                    throw new Exception("Album search started, but Lidarr did not keep album monitored.");
 
                 return new MusicRequestResult();
             }
@@ -635,6 +757,127 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
             }
 
             throw new Exception("An error occurred while requesting a music album from Lidarr");
+        }
+
+        private async Task<bool> EnsureAlbumMonitoredAsync(int albumId)
+        {
+            // Attempt 1: update the full album payload (works on most Lidarr installs).
+            HttpResponseMessage response = await HttpGetAsync($"{BaseURL}/album/{albumId}");
+            await response.ThrowIfNotSuccessfulAsync("LidarrGetAlbum failed", x => x.error);
+
+            string albumJson = await response.Content.ReadAsStringAsync();
+            JObject lidarrAlbum = JObject.Parse(albumJson);
+            lidarrAlbum["monitored"] = true;
+
+            response = await HttpPutAsync($"{BaseURL}/album/{albumId}", lidarrAlbum.ToString(Formatting.None));
+            await response.ThrowIfNotSuccessfulAsync("LidarrUpdateAlbum failed", x => x.error);
+
+            if (await IsAlbumMonitoredAsync(albumId))
+                return true;
+
+            // Attempt 2: use monitor endpoint for installs that ignore PUT monitor changes.
+            try
+            {
+                response = await HttpPostAsync($"{BaseURL}/album/monitor", JsonConvert.SerializeObject(new
+                {
+                    albumIds = new[] { albumId },
+                    monitored = true
+                }));
+
+                if (response.IsSuccessStatusCode && await IsAlbumMonitoredAsync(albumId))
+                    return true;
+            }
+            catch { }
+
+            // Attempt 3: bulk editor endpoint fallback.
+            try
+            {
+                response = await HttpPutAsync($"{BaseURL}/album/editor", JsonConvert.SerializeObject(new
+                {
+                    albumIds = new[] { albumId },
+                    monitored = true
+                }));
+
+                if (response.IsSuccessStatusCode && await IsAlbumMonitoredAsync(albumId))
+                    return true;
+            }
+            catch { }
+
+            return false;
+        }
+
+        private async Task<bool> IsAlbumMonitoredAsync(int albumId)
+        {
+            HttpResponseMessage response = await HttpGetAsync($"{BaseURL}/album/{albumId}");
+            await response.ThrowIfNotSuccessfulAsync("LidarrGetAlbum failed", x => x.error);
+
+            string albumJson = await response.Content.ReadAsStringAsync();
+            JObject refreshedAlbum = JObject.Parse(albumJson);
+
+            return refreshedAlbum["monitored"]?.Value<bool>() == true;
+        }
+
+        private async Task EnsureArtistMonitoredForAlbumRequestsAsync(string artistDownloadClientId)
+        {
+            if (string.IsNullOrWhiteSpace(artistDownloadClientId))
+                return;
+
+            HttpResponseMessage response = await HttpGetAsync($"{BaseURL}/artist/{artistDownloadClientId}");
+            await response.ThrowIfNotSuccessfulAsync("LidarrGetMusic failed", x => x.error);
+
+            string jsonResponse = await response.Content.ReadAsStringAsync();
+            JObject lidarrMusic = JObject.Parse(jsonResponse);
+            lidarrMusic["monitored"] = true;
+            lidarrMusic["monitorNewItems"] = "none";
+
+            response = await HttpPutAsync($"{BaseURL}/artist/{artistDownloadClientId}", lidarrMusic.ToString(Formatting.None));
+            await response.ThrowIfNotSuccessfulAsync("LidarrUpdateMusic failed", x => x.error);
+        }
+
+        private async Task<JSONMusicAlbum> EnsureAlbumExistsInLidarrAsync(string albumId, string artistDownloadClientId)
+        {
+            JSONMusicAlbum existingAlbum = await FindExistingAlbumByMusicDbIdAsync(albumId, artistDownloadClientId);
+            if (existingAlbum?.Id.HasValue == true)
+                return existingAlbum;
+
+            if (int.TryParse(artistDownloadClientId, out int artistId))
+            {
+                await RefreshArtistAsync(artistId);
+                existingAlbum = await WaitForAlbumInArtistAsync(albumId, artistDownloadClientId, attempts: 8, delayMs: 1200);
+                if (existingAlbum?.Id.HasValue == true)
+                    return existingAlbum;
+            }
+
+            existingAlbum = await FindAlbumByForeignIdAsync(albumId);
+            if (existingAlbum?.Id.HasValue == true)
+                return existingAlbum;
+
+            return null;
+        }
+
+        private async Task RefreshArtistAsync(int artistId)
+        {
+            HttpResponseMessage response = await HttpPostAsync($"{BaseURL}/command", JsonConvert.SerializeObject(new
+            {
+                name = "refreshArtist",
+                artistId = artistId
+            }));
+
+            await response.ThrowIfNotSuccessfulAsync("LidarrRefreshArtistCommand failed", x => x.error);
+        }
+
+        private async Task<JSONMusicAlbum> WaitForAlbumInArtistAsync(string albumId, string artistDownloadClientId, int attempts, int delayMs)
+        {
+            for (int i = 0; i < attempts; i++)
+            {
+                JSONMusicAlbum existingAlbum = await FindExistingAlbumByMusicDbIdAsync(albumId, artistDownloadClientId);
+                if (existingAlbum?.Id.HasValue == true)
+                    return existingAlbum;
+
+                await Task.Delay(delayMs);
+            }
+
+            return null;
         }
 
 
@@ -800,6 +1043,7 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
                 ArtistId = artistId,
                 ArtistName = artistName,
                 ReleaseDate = jsonAlbum.ReleaseDate == default ? null : jsonAlbum.ReleaseDate,
+                ReleaseType = DetermineReleaseType(jsonAlbum.AlbumType, jsonAlbum.SecondaryTypes),
 
                 Available = available,
                 Monitored = jsonAlbum.Monitored,
@@ -824,6 +1068,7 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
                 ArtistId = artistId,
                 ArtistName = artistName,
                 ReleaseDate = ParseReleaseDate(releaseGroup.FirstReleaseDate),
+                ReleaseType = DetermineReleaseType(releaseGroup.PrimaryType, releaseGroup.SecondaryTypes),
 
                 Available = false,
                 Monitored = false,
@@ -847,6 +1092,327 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
 
             return null;
         }
+
+        private ReleaseFilters GetReleaseFilters(int categoryId)
+        {
+            var category = _lidarrSettings.Categories.FirstOrDefault(x => x.Id == categoryId);
+            var configuredPrimaryTypes = category?.PrimaryTypes ?? Array.Empty<string>();
+
+            var primaryTypes = configuredPrimaryTypes
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(NormalizeReleaseType)
+                .Where(x => x != null)
+                .ToHashSet(StringComparer.InvariantCultureIgnoreCase);
+
+            var secondaryTypes = (category?.SecondaryTypes ?? Array.Empty<string>())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(NormalizeSecondaryTypeValue)
+                .Where(x => x != null)
+                .Where(x => AllowedSecondaryTypes.Contains(x, StringComparer.InvariantCultureIgnoreCase))
+                .ToHashSet(StringComparer.InvariantCultureIgnoreCase);
+
+            var releaseStatuses = (category?.ReleaseStatuses ?? Array.Empty<string>())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(NormalizeReleaseStatusValue)
+                .Where(x => x != null)
+                .Where(x => AllowedReleaseStatuses.Contains(x, StringComparer.InvariantCultureIgnoreCase))
+                .ToHashSet(StringComparer.InvariantCultureIgnoreCase);
+
+            return new ReleaseFilters(primaryTypes, secondaryTypes, releaseStatuses);
+        }
+
+        private static string DetermineReleaseType(string primaryType, IEnumerable<string> secondaryTypes)
+        {
+            var normalizedSecondaryTypes = secondaryTypes?.Select(NormalizeReleaseType).Where(x => x != null).ToArray() ?? Array.Empty<string>();
+
+            if (normalizedSecondaryTypes.Any(x => x.Equals(ReleaseTypeSingle, StringComparison.InvariantCultureIgnoreCase)))
+                return ReleaseTypeSingle;
+
+            if (normalizedSecondaryTypes.Any(x => x.Equals(ReleaseTypeEp, StringComparison.InvariantCultureIgnoreCase)))
+                return ReleaseTypeEp;
+
+            var normalizedPrimaryType = NormalizeReleaseType(primaryType);
+            if (normalizedPrimaryType != null)
+                return normalizedPrimaryType;
+
+            if (!string.IsNullOrWhiteSpace(primaryType))
+                return null;
+
+            return ReleaseTypeAlbum;
+        }
+
+        private static string NormalizeReleaseType(string releaseType)
+        {
+            if (string.IsNullOrWhiteSpace(releaseType))
+                return null;
+
+            if (releaseType.Equals("Album", StringComparison.InvariantCultureIgnoreCase))
+                return ReleaseTypeAlbum;
+
+            if (releaseType.Equals("EP", StringComparison.InvariantCultureIgnoreCase))
+                return ReleaseTypeEp;
+
+            if (releaseType.Equals("Single", StringComparison.InvariantCultureIgnoreCase))
+                return ReleaseTypeSingle;
+
+            if (releaseType.Equals("Broadcast", StringComparison.InvariantCultureIgnoreCase))
+                return ReleaseTypeBroadcast;
+
+            if (releaseType.Equals("Other", StringComparison.InvariantCultureIgnoreCase))
+                return ReleaseTypeOther;
+
+            return null;
+        }
+
+        private static string[] ExtractStringValues(JToken source, params string[] propertyNames)
+        {
+            foreach (string propertyName in propertyNames)
+            {
+                JToken token = source[propertyName];
+                if (token == null)
+                    continue;
+
+                var values = new List<string>();
+
+                if (token is JArray array)
+                {
+                    foreach (JToken item in array)
+                    {
+                        if (item == null)
+                            continue;
+
+                        if (item.Type == JTokenType.String)
+                        {
+                            string value = item.Value<string>();
+                            if (!string.IsNullOrWhiteSpace(value))
+                                values.Add(value.Trim());
+                            continue;
+                        }
+
+                        if (item.Type == JTokenType.Object && !IsSelectedItem(item))
+                            continue;
+
+                        string[] objectValueCandidates = { "name", "value", "type", "id" };
+                        foreach (string valueProperty in objectValueCandidates)
+                        {
+                            string value = item[valueProperty]?.Value<string>();
+                            if (string.IsNullOrWhiteSpace(value) && item[valueProperty] is JObject nestedObject)
+                            {
+                                value = nestedObject["name"]?.Value<string>()
+                                    ?? nestedObject["value"]?.Value<string>()
+                                    ?? nestedObject["type"]?.Value<string>()
+                                    ?? nestedObject["id"]?.Value<string>();
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(value))
+                            {
+                                values.Add(value.Trim());
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (values.Any())
+                    return values.Distinct(StringComparer.InvariantCultureIgnoreCase).ToArray();
+            }
+
+            return Array.Empty<string>();
+        }
+
+        private static string[] GetMetadataPrimaryTypes(JToken source)
+        {
+            var values = ExtractAllowedTypeNames(source, "primaryAlbumTypes", "albumType");
+            if (values.Length == 0)
+                values = ExtractStringValues(source, "primaryTypes", "primaryType", "primaryAlbumTypes", "allowedPrimaryTypes");
+            if (values.Length == 0)
+                values = ExtractStringValuesDeep(source);
+
+            return values
+                .Select(NormalizeMetadataPrimaryTypeValue)
+                .Where(v => v != null)
+                .Distinct(StringComparer.InvariantCultureIgnoreCase)
+                .ToArray();
+        }
+
+        private static string[] GetMetadataSecondaryTypes(JToken source)
+        {
+            var values = ExtractAllowedTypeNames(source, "secondaryAlbumTypes", "albumType");
+            if (values.Length == 0)
+                values = ExtractStringValues(source, "secondaryTypes", "secondaryType", "secondaryAlbumTypes", "allowedSecondaryTypes");
+            if (values.Length == 0)
+                values = ExtractStringValuesDeep(source);
+
+            return values
+                .Select(NormalizeSecondaryTypeValue)
+                .Where(v => v != null)
+                .Distinct(StringComparer.InvariantCultureIgnoreCase)
+                .ToArray();
+        }
+
+        private static string[] GetMetadataReleaseStatuses(JToken source)
+        {
+            var values = ExtractAllowedTypeNames(source, "releaseStatuses", "releaseStatus");
+            if (values.Length == 0)
+                values = ExtractStringValues(source, "releaseStatuses", "releaseStatus", "statuses", "allowedReleaseStatuses");
+            if (values.Length == 0)
+                values = ExtractStringValuesDeep(source);
+
+            return values
+                .Select(NormalizeReleaseStatusValue)
+                .Where(v => v != null)
+                .Distinct(StringComparer.InvariantCultureIgnoreCase)
+                .ToArray();
+        }
+
+        private static string[] ExtractAllowedTypeNames(JToken source, string collectionPropertyName, string valueObjectPropertyName)
+        {
+            if (!(source[collectionPropertyName] is JArray collection))
+                return Array.Empty<string>();
+
+            return collection
+                .Where(item => item != null && IsSelectedItem(item))
+                .Select(item => item[valueObjectPropertyName]?["name"]?.Value<string>())
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Trim())
+                .Distinct(StringComparer.InvariantCultureIgnoreCase)
+                .ToArray();
+        }
+
+        private static string[] ExtractStringValuesDeep(JToken source)
+        {
+            var values = new List<string>();
+
+            IEnumerable<JToken> tokens = source is JContainer container
+                ? container.DescendantsAndSelf()
+                : new[] { source };
+
+            foreach (var token in tokens)
+            {
+                if (token.Type == JTokenType.String)
+                {
+                    string value = token.Value<string>();
+                    if (!string.IsNullOrWhiteSpace(value))
+                        values.Add(value.Trim());
+                    continue;
+                }
+
+            }
+
+            return values.Distinct(StringComparer.InvariantCultureIgnoreCase).ToArray();
+        }
+
+        private static bool IsSelectedItem(JToken item)
+        {
+            string[] selectionFlags = { "allowed", "selected", "enabled", "isAllowed", "isSelected", "isEnabled" };
+            foreach (string flag in selectionFlags)
+            {
+                JToken token = item[flag];
+                if (token == null)
+                    continue;
+
+                if (token.Type == JTokenType.Boolean && token.Value<bool>() == false)
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static bool IsAllowedByMetadataProfileRules(string primaryType, IEnumerable<string> secondaryTypes, ReleaseFilters filters)
+        {
+            string normalizedPrimary = NormalizeReleaseType(primaryType);
+            if (normalizedPrimary == null)
+                return false;
+
+            if (filters.PrimaryTypes.Any() && !filters.PrimaryTypes.Contains(normalizedPrimary))
+                return false;
+
+            if (secondaryTypes == null)
+                return true;
+
+            var normalizedSecondary = secondaryTypes
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(NormalizeSecondaryTypeValue)
+                .Where(x => x != null)
+                .ToArray();
+
+            if (normalizedSecondary.Length == 0)
+                return true;
+
+            if (!filters.SecondaryTypes.Any())
+                return true;
+
+            return normalizedSecondary.All(x => filters.SecondaryTypes.Contains(x));
+        }
+
+        private static bool HasAllowedReleaseStatus(IEnumerable<JSONReleases> releases, ReleaseFilters filters)
+        {
+            if (!filters.ReleaseStatuses.Any())
+                return true;
+
+            if (releases == null)
+                return true;
+
+            var releaseList = releases.ToArray();
+            if (releaseList.Length == 0)
+                return true;
+
+            return releaseList.Any(x => !string.IsNullOrWhiteSpace(x.Status)
+                && filters.ReleaseStatuses.Contains(NormalizeReleaseStatusValue(x.Status)));
+        }
+
+        private static string NormalizeSecondaryTypeValue(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            string normalized = value.Trim();
+            if (normalized.Equals("DJ-Mix", StringComparison.InvariantCultureIgnoreCase))
+                return "DJ-mix";
+            if (normalized.Equals("DJMix", StringComparison.InvariantCultureIgnoreCase))
+                return "DJ-mix";
+            if (normalized.Equals("SpokenWord", StringComparison.InvariantCultureIgnoreCase))
+                return "Spokenword";
+            if (normalized.Equals("AudioDrama", StringComparison.InvariantCultureIgnoreCase))
+                return "Audio drama";
+            if (normalized.Equals("MixtapeStreet", StringComparison.InvariantCultureIgnoreCase))
+                return "Mixtape/Street";
+            if (normalized.Equals("SoundTrack", StringComparison.InvariantCultureIgnoreCase))
+                return "Soundtrack";
+            return normalized;
+        }
+
+        private static string NormalizeMetadataPrimaryTypeValue(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            string normalized = value.Trim();
+            if (normalized.Equals("Album", StringComparison.InvariantCultureIgnoreCase))
+                return "Album";
+            if (normalized.Equals("EP", StringComparison.InvariantCultureIgnoreCase))
+                return "EP";
+            if (normalized.Equals("Single", StringComparison.InvariantCultureIgnoreCase))
+                return "Single";
+            if (normalized.Equals("Broadcast", StringComparison.InvariantCultureIgnoreCase))
+                return "Broadcast";
+            if (normalized.Equals("Other", StringComparison.InvariantCultureIgnoreCase))
+                return "Other";
+
+            return null;
+        }
+
+        private static string NormalizeReleaseStatusValue(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            string normalized = value.Trim();
+            if (normalized.Equals("Pseudo Release", StringComparison.InvariantCultureIgnoreCase))
+                return "Pseudo-Release";
+            return normalized;
+        }
+
 
 
         private string GetPosterImageUrl(List<JSONImage> images)
@@ -1193,6 +1759,41 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
 
             [JsonProperty("name")]
             public string Name { get; set; }
+        }
+
+        private const string ReleaseTypeAlbum = "Album";
+        private const string ReleaseTypeEp = "EP";
+        private const string ReleaseTypeSingle = "Single";
+        private const string ReleaseTypeBroadcast = "Broadcast";
+        private const string ReleaseTypeOther = "Other";
+        private static readonly string[] AllowedSecondaryTypes =
+        {
+            "Studio",
+            "Spokenword",
+            "Soundtrack",
+            "Remix",
+            "Mixtape/Street",
+            "Live",
+            "Interview",
+            "DJ-Mix",
+            "Demo",
+            "Compilation",
+            "Audio drama"
+        };
+        private static readonly string[] AllowedReleaseStatuses = { "Pseudo-Release", "Promotion", "Official", "Bootleg" };
+
+        private sealed class ReleaseFilters
+        {
+            public ReleaseFilters(HashSet<string> primaryTypes, HashSet<string> secondaryTypes, HashSet<string> releaseStatuses)
+            {
+                PrimaryTypes = primaryTypes;
+                SecondaryTypes = secondaryTypes;
+                ReleaseStatuses = releaseStatuses;
+            }
+
+            public HashSet<string> PrimaryTypes { get; }
+            public HashSet<string> SecondaryTypes { get; }
+            public HashSet<string> ReleaseStatuses { get; }
         }
     }
 }

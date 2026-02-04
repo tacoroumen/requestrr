@@ -14,13 +14,16 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
     {
         private readonly DiscordInteraction _interactionContext;
         private readonly IMusicSearcher _musicSearcher;
+        private readonly string _restrictions;
 
         public DiscordMusicUserInterface(
             DiscordInteraction interactionContext,
-            IMusicSearcher musicSearcher)
+            IMusicSearcher musicSearcher,
+            string restrictions)
         {
             _interactionContext = interactionContext;
             _musicSearcher = musicSearcher;
+            _restrictions = string.IsNullOrWhiteSpace(restrictions) ? MusicRestrictions.None : restrictions;
         }
 
 
@@ -32,49 +35,83 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             await _interactionContext.EditOriginalResponseAsync(new DiscordWebhookBuilder().AddComponents(select).WithContent(Language.Current.DiscordCommandMusicArtistRequestHelp));
         }
 
-        public async Task ShowMusicAlbumSelection(MusicRequest request, MusicArtist musicArtist, IReadOnlyList<MusicAlbum> albums, int page)
+        public async Task ShowMusicAlbumSelection(MusicRequest request, MusicArtist musicArtist, IReadOnlyList<MusicAlbum> albums, int page, string selectedReleaseType = null)
         {
+            var availableReleaseTypes = albums
+                .Select(x => x.ReleaseType)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.InvariantCultureIgnoreCase)
+                .OrderBy(x => GetReleaseTypeSortOrder(x))
+                .ToArray();
+
+            if (!availableReleaseTypes.Any())
+                availableReleaseTypes = new[] { "Album" };
+
+            string effectiveReleaseType = string.IsNullOrWhiteSpace(selectedReleaseType) ? "Album" : selectedReleaseType;
+            if (!availableReleaseTypes.Contains(effectiveReleaseType, StringComparer.InvariantCultureIgnoreCase))
+                effectiveReleaseType = availableReleaseTypes.First();
+
+            var releaseTypeOptions = availableReleaseTypes
+                .Select(x => new DiscordSelectComponentOption(x, $"{request.CategoryId}/{musicArtist.ArtistId}/{x}", null, x.Equals(effectiveReleaseType, StringComparison.InvariantCultureIgnoreCase)))
+                .ToList();
+
+            DiscordSelectComponent releaseTypeSelect = new DiscordSelectComponent(
+                $"MuRLT/{_interactionContext.User.Id}/{request.CategoryId}/{musicArtist.ArtistId}",
+                effectiveReleaseType,
+                releaseTypeOptions);
+
+            var filteredAlbums = albums
+                .Where(x => string.Equals(x.ReleaseType, effectiveReleaseType, StringComparison.InvariantCultureIgnoreCase))
+                .ToArray();
+
             const int pageSize = 15;
-            int totalPages = (int)Math.Ceiling(albums.Count / (double)pageSize);
+            int totalPages = (int)Math.Ceiling(filteredAlbums.Length / (double)pageSize);
             int currentPage = Math.Max(0, Math.Min(page, Math.Max(totalPages - 1, 0)));
+            string allLabel = GetAllReleaseTypeLabel(effectiveReleaseType);
 
-            var options = new List<DiscordSelectComponentOption>
+            var options = new List<DiscordSelectComponentOption>();
+
+            if (CanRequestAllAlbumsForReleaseType(effectiveReleaseType))
             {
-                new DiscordSelectComponentOption(Language.Current.DiscordCommandMusicAlbumOptionAll, $"{request.CategoryId}/{musicArtist.ArtistId}/all")
-            };
+                options.Add(new DiscordSelectComponentOption(allLabel, $"{request.CategoryId}/{musicArtist.ArtistId}/all/{effectiveReleaseType}", null, true));
+            }
 
-            options.AddRange(albums
+            options.AddRange(filteredAlbums
                 .Skip(currentPage * pageSize)
                 .Take(pageSize)
-                .Select(x => new DiscordSelectComponentOption(GetFormattedMusicAlbumName(x), $"{request.CategoryId}/{musicArtist.ArtistId}/{x.AlbumId}")));
+                .Select(x => new DiscordSelectComponentOption(GetFormattedMusicAlbumName(x), $"{request.CategoryId}/{musicArtist.ArtistId}/{x.AlbumId}/{effectiveReleaseType}")));
 
             string placeholder = totalPages > 1
                 ? $"{Language.Current.DiscordCommandMusicAlbumRequestHelpDropdown} ({currentPage + 1}/{totalPages})"
                 : Language.Current.DiscordCommandMusicAlbumRequestHelpDropdown;
 
-            DiscordSelectComponent select = new DiscordSelectComponent($"MuRLA/{_interactionContext.User.Id}/{request.CategoryId}/{musicArtist.ArtistId}/{currentPage}", LimitStringSize(placeholder), options);
+            DiscordSelectComponent select = new DiscordSelectComponent($"MuRLA/{_interactionContext.User.Id}/{request.CategoryId}/{musicArtist.ArtistId}/{currentPage}/{effectiveReleaseType}", LimitStringSize(placeholder), options);
 
-            var builder = (await AddPreviousDropdownsAsync(musicArtist, new DiscordWebhookBuilder().AddEmbed(GenerateMusicArtistDetails(musicArtist)), false)).AddComponents(select).WithContent(Language.Current.DiscordCommandMusicAlbumRequestHelp);
+            var albumBuilder = new DiscordWebhookBuilder()
+                .AddEmbed(GenerateMusicArtistDetails(musicArtist))
+                .AddComponents(releaseTypeSelect)
+                .AddComponents(select)
+                .WithContent(Language.Current.DiscordCommandMusicAlbumRequestHelp);
 
             if (totalPages > 1)
             {
                 var prevButton = new DiscordButtonComponent(
                     ButtonStyle.Secondary,
-                    $"MuRLP/{_interactionContext.User.Id}/{request.CategoryId}/{musicArtist.ArtistId}/{Math.Max(currentPage - 1, 0)}",
+                    $"MuRLP/{_interactionContext.User.Id}/{request.CategoryId}/{musicArtist.ArtistId}/{Math.Max(currentPage - 1, 0)}/{effectiveReleaseType}",
                     "◀",
                     currentPage == 0
                 );
                 var nextButton = new DiscordButtonComponent(
                     ButtonStyle.Secondary,
-                    $"MuRLP/{_interactionContext.User.Id}/{request.CategoryId}/{musicArtist.ArtistId}/{Math.Min(currentPage + 1, totalPages - 1)}",
+                    $"MuRLP/{_interactionContext.User.Id}/{request.CategoryId}/{musicArtist.ArtistId}/{Math.Min(currentPage + 1, totalPages - 1)}/{effectiveReleaseType}",
                     "▶",
                     currentPage >= totalPages - 1
                 );
 
-                builder.AddComponents(prevButton, nextButton);
+                albumBuilder.AddComponents(prevButton, nextButton);
             }
 
-            await _interactionContext.EditOriginalResponseAsync(builder);
+            await _interactionContext.EditOriginalResponseAsync(albumBuilder);
         }
 
 
@@ -90,7 +127,10 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
         public async Task DisplayMusicAlbumDetailsAsync(MusicRequest request, MusicArtist artist, MusicAlbum album)
         {
             string message = Language.Current.DiscordCommandMusicAlbumRequestConfirm.ReplaceTokens(album, artist);
-            DiscordButtonComponent requestButton = new DiscordButtonComponent(ButtonStyle.Primary, $"MuRLC/{_interactionContext.User.Id}/{request.CategoryId}/{artist.ArtistId}/{album.AlbumId}", Language.Current.DiscordCommandRequestButton);
+            DiscordButtonComponent requestButton = new DiscordButtonComponent(
+                ButtonStyle.Primary,
+                $"MuRLC/{_interactionContext.User.Id}/{request.CategoryId}/{CompactGuid(artist.ArtistId)}/{CompactGuid(album.AlbumId)}",
+                Language.Current.DiscordCommandRequestButton);
 
             var builder = (await AddPreviousDropdownsAsync(artist, new DiscordWebhookBuilder().AddEmbed(GenerateMusicAlbumDetails(artist, album)), true, album.AlbumId)).AddComponents(requestButton).WithContent(message);
             await _interactionContext.EditOriginalResponseAsync(builder);
@@ -251,18 +291,54 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
         }
 
 
-        private async Task<DiscordWebhookBuilder> AddPreviousDropdownsAsync(MusicArtist music, DiscordWebhookBuilder builder, bool includeAlbumSelector = true, string selectedAlbumId = null)
+        private async Task<DiscordWebhookBuilder> AddPreviousDropdownsAsync(
+            MusicArtist music,
+            DiscordWebhookBuilder builder,
+            bool includeAlbumSelector = true,
+            string selectedAlbumId = null,
+            bool includeReleaseTypeSelector = true,
+            string selectedReleaseType = null)
         {
-            DiscordSelectComponent previousMusicSelector = (await _interactionContext.GetOriginalResponseAsync()).FilterComponents<DiscordSelectComponent>().FirstOrDefault(x => x.CustomId.StartsWith("MuRSA", true, null));
+            var components = (await _interactionContext.GetOriginalResponseAsync()).FilterComponents<DiscordSelectComponent>().ToArray();
+            DiscordSelectComponent previousMusicSelector = components.FirstOrDefault(x => x.CustomId.StartsWith("MuRSA", true, null));
             if (previousMusicSelector != null)
             {
                 DiscordSelectComponent musicSelector = new DiscordSelectComponent(previousMusicSelector.CustomId, GetFormattedMusicArtistName(music), previousMusicSelector.Options);
                 builder.AddComponents(musicSelector);
             }
 
+            if (includeReleaseTypeSelector)
+            {
+                DiscordSelectComponent previousReleaseTypeSelector = components.FirstOrDefault(x => x.CustomId.StartsWith("MuRLT", true, null));
+                if (previousReleaseTypeSelector != null)
+                {
+                    IReadOnlyList<DiscordSelectComponentOption> releaseTypeOptions = previousReleaseTypeSelector.Options;
+                    string releaseTypePlaceholder = string.IsNullOrWhiteSpace(previousReleaseTypeSelector.Placeholder)
+                        ? "Release Type"
+                        : previousReleaseTypeSelector.Placeholder;
+
+                    if (!string.IsNullOrWhiteSpace(selectedReleaseType))
+                    {
+                        releaseTypeOptions = previousReleaseTypeSelector.Options
+                            .Select(x =>
+                            {
+                                bool isSelected = x.Value.EndsWith($"/{selectedReleaseType}", StringComparison.InvariantCultureIgnoreCase);
+                                if (isSelected)
+                                    releaseTypePlaceholder = x.Label;
+
+                                return new DiscordSelectComponentOption(x.Label, x.Value, x.Description, isSelected);
+                            })
+                            .ToList();
+                    }
+
+                    DiscordSelectComponent releaseTypeSelector = new DiscordSelectComponent(previousReleaseTypeSelector.CustomId, LimitStringSize(releaseTypePlaceholder), releaseTypeOptions);
+                    builder.AddComponents(releaseTypeSelector);
+                }
+            }
+
             if (includeAlbumSelector)
             {
-                DiscordSelectComponent previousAlbumSelector = (await _interactionContext.GetOriginalResponseAsync()).FilterComponents<DiscordSelectComponent>().FirstOrDefault(x => x.CustomId.StartsWith("MuRLA", true, null));
+                DiscordSelectComponent previousAlbumSelector = components.FirstOrDefault(x => x.CustomId.StartsWith("MuRLA", true, null));
                 if (previousAlbumSelector != null)
                 {
                     IReadOnlyList<DiscordSelectComponentOption> albumOptions = previousAlbumSelector.Options;
@@ -275,9 +351,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                         albumOptions = previousAlbumSelector.Options
                             .Select(x =>
                             {
-                                bool isSelected = x.Value.EndsWith($"/{selectedAlbumId}", StringComparison.InvariantCultureIgnoreCase);
-                                if (selectedAlbumId.Equals("all", StringComparison.InvariantCultureIgnoreCase))
-                                    isSelected = x.Value.EndsWith("/all", StringComparison.InvariantCultureIgnoreCase);
+                                string[] values = x.Value.Split("/");
+                                bool isSelected = values.Length >= 3 && values[2].Equals(selectedAlbumId, StringComparison.InvariantCultureIgnoreCase);
 
                                 if (isSelected)
                                     placeholder = x.Label;
@@ -293,6 +368,111 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             }
 
             return builder;
+        }
+
+        private static string GetAllReleaseTypeLabel(string releaseType)
+        {
+            if (string.Equals(releaseType, "Album", StringComparison.InvariantCultureIgnoreCase))
+                return "All Albums";
+
+            if (string.Equals(releaseType, "EP", StringComparison.InvariantCultureIgnoreCase))
+                return "All EPs";
+
+            if (string.Equals(releaseType, "Broadcast", StringComparison.InvariantCultureIgnoreCase))
+                return "All Broadcasts";
+
+            if (string.Equals(releaseType, "Other", StringComparison.InvariantCultureIgnoreCase))
+                return "All Other";
+
+            if (string.Equals(releaseType, "Single", StringComparison.InvariantCultureIgnoreCase))
+                return "All Singles";
+
+            return "All";
+        }
+
+        private static int GetReleaseTypeSortOrder(string releaseType)
+        {
+            if (string.Equals(releaseType, "Album", StringComparison.InvariantCultureIgnoreCase)) return 0;
+            if (string.Equals(releaseType, "EP", StringComparison.InvariantCultureIgnoreCase)) return 1;
+            if (string.Equals(releaseType, "Single", StringComparison.InvariantCultureIgnoreCase)) return 2;
+            if (string.Equals(releaseType, "Broadcast", StringComparison.InvariantCultureIgnoreCase)) return 3;
+            if (string.Equals(releaseType, "Other", StringComparison.InvariantCultureIgnoreCase)) return 4;
+            return 100;
+        }
+
+        private static string CompactGuid(string value)
+        {
+            if (Guid.TryParse(value, out Guid guid))
+                return guid.ToString("N");
+
+            return value;
+        }
+
+        private bool CanRequestAllAlbumsForReleaseType(string releaseType)
+        {
+            if (IsNoneRestriction())
+                return true;
+
+            var restrictedTypes = GetRestrictedReleaseTypes();
+            return !restrictedTypes.Contains(releaseType, StringComparer.InvariantCultureIgnoreCase);
+        }
+
+        private bool IsNoneRestriction()
+        {
+            return !ParseRestrictions().Any();
+        }
+
+        private bool HasRestriction(string restriction)
+        {
+            return ParseRestrictions().Contains(restriction, StringComparer.InvariantCultureIgnoreCase);
+        }
+
+        private string[] GetRestrictedReleaseTypes()
+        {
+            return ParseRestrictions()
+                .Select(MapRestrictionToReleaseType)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.InvariantCultureIgnoreCase)
+                .ToArray();
+        }
+
+        private static string MapRestrictionToReleaseType(string restriction)
+        {
+            if (string.IsNullOrWhiteSpace(restriction))
+                return null;
+
+            string normalized = restriction.Trim();
+            if (normalized.StartsWith(MusicRestrictions.SinglePrefix, StringComparison.InvariantCultureIgnoreCase))
+                return normalized.Substring(MusicRestrictions.SinglePrefix.Length).Trim();
+
+            if (normalized.Equals(MusicRestrictions.SingleAlbum, StringComparison.InvariantCultureIgnoreCase))
+                return "Album";
+
+            if (normalized.Equals(MusicRestrictions.SingleEP, StringComparison.InvariantCultureIgnoreCase))
+                return "EP";
+
+            if (normalized.Equals(MusicRestrictions.SingleSingle, StringComparison.InvariantCultureIgnoreCase))
+                return "Single";
+
+            return null;
+        }
+
+        private string[] ParseRestrictions()
+        {
+            if (string.IsNullOrWhiteSpace(_restrictions))
+                return Array.Empty<string>();
+
+            var parsed = _restrictions
+                .Split(',')
+                .Select(x => x.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.InvariantCultureIgnoreCase)
+                .ToArray();
+
+            if (parsed.Any(x => x.Equals(MusicRestrictions.None, StringComparison.InvariantCultureIgnoreCase)))
+                return Array.Empty<string>();
+
+            return parsed;
         }
     }
 }

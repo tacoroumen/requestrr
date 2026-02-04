@@ -6,7 +6,7 @@ namespace Requestrr.WebApi.RequestrrBot.Music
     public interface IMusicUserInterface
     {
         Task ShowMusicArtistSelection(MusicRequest request, IReadOnlyList<MusicArtist> music);
-        Task ShowMusicAlbumSelection(MusicRequest request, MusicArtist musicArtist, IReadOnlyList<MusicAlbum> albums, int page);
+        Task ShowMusicAlbumSelection(MusicRequest request, MusicArtist musicArtist, IReadOnlyList<MusicAlbum> albums, int page, string selectedReleaseType = null);
         Task WarnNoMusicArtistFoundAsync(string musicName);
 
         Task DisplayMusicArtistDetailsAsync(MusicRequest request, MusicArtist music);

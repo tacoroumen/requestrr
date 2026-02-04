@@ -77,6 +77,11 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
             return LidarrClientV1.GetMetadataProfiles(httpClient, logger, settings);
         }
 
+        public static Task<IList<JSONMetadataProfile>> GetMetadataProfilesDetailed(HttpClient httpClient, ILogger<LidarrClient> logger, LidarrSettings settings)
+        {
+            return LidarrClientV1.GetMetadataProfilesDetailed(httpClient, logger, settings);
+        }
+
 
 
 
@@ -165,6 +170,15 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
         {
             public string label { get; set; }
             public int id { get; set; }
+        }
+
+        public class JSONMetadataProfile
+        {
+            public int id { get; set; }
+            public string name { get; set; }
+            public string[] primaryTypes { get; set; } = Array.Empty<string>();
+            public string[] secondaryTypes { get; set; } = Array.Empty<string>();
+            public string[] releaseStatuses { get; set; } = Array.Empty<string>();
         }
     }
 }
