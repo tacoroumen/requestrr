@@ -68,7 +68,7 @@ function ChatClients(props) {
   const [tvShowRoles, setTvShowRoles] = useState([]);
   const [movieRoles, setMovieRoles] = useState([]);
   const [musicRoles, setMusicRoles] = useState([]);
-  const [adminUserIds, setAdminUserIds] = useState([]);
+  const [adminRoleIds, setAdminRoleIds] = useState([]);
   const [adminChannelIds, setAdminChannelIds] = useState([]);
   const [adminChannelAllRequests, setAdminChannelAllRequests] = useState(false);
   const [automaticallyNotifyRequesters, setAutomaticallyNotifyRequesters] = useState(true);
@@ -94,7 +94,7 @@ function ChatClients(props) {
         setTvShowRoles(data.payload.tvShowRoles);
         setMovieRoles(data.payload.movieRoles);
         setMusicRoles(data.payload.musicRoles);
-        setAdminUserIds(data.payload.adminUserIds || []);
+        setAdminRoleIds(data.payload.adminRoleIds || []);
         setAdminChannelIds(data.payload.adminChannelIds || []);
         setAdminChannelAllRequests(data.payload.adminChannelAllRequests || false);
         setAutomaticallyNotifyRequesters(data.payload.automaticallyNotifyRequesters);
@@ -198,7 +198,7 @@ function ChatClients(props) {
           tvShowRoles: tvShowRoles,
           movieRoles: movieRoles,
           musicRoles: musicRoles,
-          adminUserIds: adminUserIds,
+          adminRoleIds: adminRoleIds,
           adminChannelIds: adminChannelIds,
           adminChannelAllRequests: adminChannelAllRequests,
           enableRequestsThroughDirectMessages: enableRequestsThroughDirectMessages,
@@ -453,16 +453,16 @@ function ChatClients(props) {
                       <Col lg="6">
                         <FormGroup>
                           <MultiDropdown
-                            name="Admin user ids for approvals"
+                            name="Admin role ids for approvals"
                             create={true}
                             searchable={true}
-                            placeholder="Enter discord user ids for request approvals."
+                            placeholder="Enter discord role ids for request approvals."
                             labelField="name"
                             valueField="id"
                             dropdownHandle={false}
-                            selectedItems={adminUserIds.map(x => { return { name: x, id: x } })}
-                            items={adminUserIds.map(x => { return { name: x, id: x } })}
-                            onChange={newAdminIds => setAdminUserIds(newAdminIds.filter(x => /\S/.test(x.id)).map(x => x.id.trim()))} />
+                            selectedItems={adminRoleIds.map(x => { return { name: x, id: x } })}
+                            items={adminRoleIds.map(x => { return { name: x, id: x } })}
+                            onChange={newAdminIds => setAdminRoleIds(newAdminIds.filter(x => /\S/.test(x.id)).map(x => x.id.trim()))} />
                         </FormGroup>
                       </Col>
                       <Col lg="6">
@@ -478,6 +478,33 @@ function ChatClients(props) {
                             selectedItems={adminChannelIds.map(x => { return { name: x, id: x } })}
                             items={adminChannelIds.map(x => { return { name: x, id: x } })}
                             onChange={newChannelIds => setAdminChannelIds(newChannelIds.filter(x => /\S/.test(x.id)).map(x => x.id.trim()))} />
+                        </FormGroup>
+                      </Col>
+                    </Row>
+                    <Row>
+                      <Col md="12">
+                        <FormGroup>
+                          {
+                            (!isLoading) && (
+                              (() => {
+                                const warnings = [];
+                                if (!adminRoleIds || adminRoleIds.length === 0) {
+                                  warnings.push("No admin role ids are configured. Requests that require approval will have no one able to approve/deny them.");
+                                }
+                                if (!adminChannelIds || adminChannelIds.length === 0) {
+                                  warnings.push("No admin channel ids are configured. Pending approvals will not be posted to any admin channel.");
+                                }
+                                if (warnings.length === 0) {
+                                  return null;
+                                }
+                                return (
+                                  <Alert className="mb-0" color="warning">
+                                    <strong>Approvals warning:</strong> {warnings.join(" ")}
+                                  </Alert>
+                                );
+                              })()
+                            )
+                          }
                         </FormGroup>
                       </Col>
                     </Row>

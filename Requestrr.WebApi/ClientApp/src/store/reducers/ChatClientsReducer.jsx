@@ -11,7 +11,7 @@ export default function ChatClientsReducer(state = {}, action) {
       tvShowRoles: action.payload.tvShowRoles,
       movieRoles: action.payload.movieRoles,
       musicRoles: action.payload.musicRoles,
-      adminUserIds: action.payload.adminUserIds,
+      adminRoleIds: action.payload.adminRoleIds,
       adminChannelIds: action.payload.adminChannelIds,
       adminChannelAllRequests: action.payload.adminChannelAllRequests,
       enableRequestsThroughDirectMessages: action.payload.enableRequestsThroughDirectMessages,

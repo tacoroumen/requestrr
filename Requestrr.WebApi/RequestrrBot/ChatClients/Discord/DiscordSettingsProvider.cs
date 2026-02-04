@@ -31,7 +31,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                 TvShowRoles = settings.ChatClients.Discord.TvShowRoles.ToObject<string[]>(),
                 MovieRoles = settings.ChatClients.Discord.MovieRoles.ToObject<string[]>(),
                 MusicRoles = settings.ChatClients.Discord.MusicRoles.ToObject<string[]>(),
-                AdminUserIds = settings.ChatClients.Discord.AdminUserIds.ToObject<string[]>() ?? Array.Empty<string>(),
+                AdminRoleIds = settings.ChatClients.Discord.AdminRoleIds.ToObject<string[]>() ?? Array.Empty<string>(),
                 AdminChannelIds = settings.ChatClients.Discord.AdminChannelIds.ToObject<string[]>() ?? Array.Empty<string>(),
                 AdminChannelAllRequests = (bool)settings.ChatClients.Discord.AdminChannelAllRequests,
                 ClientID = settings.ChatClients.Discord.ClientId,

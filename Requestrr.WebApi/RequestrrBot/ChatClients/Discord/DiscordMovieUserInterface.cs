@@ -291,7 +291,20 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
 
             await _interactionContext.EditOriginalResponseAsync(builder);
             var originalMessage = await _interactionContext.GetOriginalResponseAsync();
-            _approvalRepository.AddMessage(requestId, _interactionContext.User.Username, originalMessage.ChannelId, originalMessage.Id, false);
+            var isDirectMessage = originalMessage.Channel != null && originalMessage.Channel.Type == ChannelType.Private;
+            _approvalRepository.AddMessage(requestId, _interactionContext.User.Username, _interactionContext.User.Id, originalMessage.ChannelId, originalMessage.Id, false, isDirectMessage);
+            if (!settings.AutomaticallyPurgeCommandMessages)
+            {
+                try
+                {
+                    await originalMessage.CreateReactionAsync(DiscordEmoji.FromUnicode("✅"));
+                    await originalMessage.CreateReactionAsync(DiscordEmoji.FromUnicode("❌"));
+                }
+                catch
+                {
+                    // Ignore reaction failures
+                }
+            }
             await SendAdminPendingMessageAsync(movie, embed, requestId);
         }
 
@@ -368,7 +381,16 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                 if (channel != null)
                 {
                     var adminRequestMessage = await channel.SendMessageAsync(builder);
-                    _approvalRepository.AddMessage(requestId, _interactionContext.User.Username, adminRequestMessage.ChannelId, adminRequestMessage.Id, true);
+                    _approvalRepository.AddMessage(requestId, _interactionContext.User.Username, _interactionContext.User.Id, adminRequestMessage.ChannelId, adminRequestMessage.Id, true, false);
+                    try
+                    {
+                        await adminRequestMessage.CreateReactionAsync(DiscordEmoji.FromUnicode("✅"));
+                        await adminRequestMessage.CreateReactionAsync(DiscordEmoji.FromUnicode("❌"));
+                    }
+                    catch
+                    {
+                        // Ignore reaction failures
+                    }
                 }
             }
         }

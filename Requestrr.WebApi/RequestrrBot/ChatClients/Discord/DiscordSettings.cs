@@ -18,7 +18,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
         public int TvShowDownloadClientConfigurationHash { get; set; }
         public string MusicDownloadClient { get; set; }
         public int MusicDownloadClientConfigurationHash { get; set; }
-        public string[] AdminUserIds { get; set; }
+        public string[] AdminRoleIds { get; set; }
         public string[] AdminChannelIds { get; set; }
         public bool AdminChannelAllRequests { get; set; }
         public bool EnableRequestsThroughDirectMessages { get; set; }
@@ -43,7 +43,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                    TvShowDownloadClientConfigurationHash == settings.TvShowDownloadClientConfigurationHash &&
                    MusicDownloadClient == settings.MusicDownloadClient &&
                    MusicDownloadClientConfigurationHash == settings.MusicDownloadClientConfigurationHash &&
-                   (AdminUserIds ?? Array.Empty<string>()).SequenceEqual(settings.AdminUserIds ?? Array.Empty<string>()) &&
+                   (AdminRoleIds ?? Array.Empty<string>()).SequenceEqual(settings.AdminRoleIds ?? Array.Empty<string>()) &&
                    (AdminChannelIds ?? Array.Empty<string>()).SequenceEqual(settings.AdminChannelIds ?? Array.Empty<string>()) &&
                    AdminChannelAllRequests == settings.AdminChannelAllRequests &&
                    EnableRequestsThroughDirectMessages == settings.EnableRequestsThroughDirectMessages &&
@@ -69,7 +69,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             hash.Add(TvShowDownloadClientConfigurationHash);
             hash.Add(MusicDownloadClient);
             hash.Add(MusicDownloadClientConfigurationHash);
-            hash.Add(AdminUserIds);
+            hash.Add(AdminRoleIds);
             hash.Add(AdminChannelIds);
             hash.Add(AdminChannelAllRequests);
             hash.Add(EnableRequestsThroughDirectMessages);

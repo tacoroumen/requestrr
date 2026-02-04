@@ -20,7 +20,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 settings.ChatClients.Discord.TvShowRoles = JToken.FromObject(chatClientsSettings.Discord.TvShowRoles);
                 settings.ChatClients.Discord.MovieRoles = JToken.FromObject(chatClientsSettings.Discord.MovieRoles);
                 settings.ChatClients.Discord.MusicRoles = JToken.FromObject(chatClientsSettings.Discord.MusicRoles);
-                settings.ChatClients.Discord.AdminUserIds = JToken.FromObject(chatClientsSettings.Discord.AdminUserIds);
+                settings.ChatClients.Discord.AdminRoleIds = JToken.FromObject(chatClientsSettings.Discord.AdminRoleIds);
                 settings.ChatClients.Discord.AdminChannelIds = JToken.FromObject(chatClientsSettings.Discord.AdminChannelIds);
                 settings.ChatClients.Discord.AdminChannelAllRequests = chatClientsSettings.Discord.AdminChannelAllRequests;
                 settings.ChatClients.Discord.EnableRequestsThroughDirectMessages = chatClientsSettings.Discord.EnableRequestsThroughDirectMessages;

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using DSharpPlus;
 using DSharpPlus.Entities;
@@ -60,6 +61,7 @@ namespace Requestrr.WebApi.RequestrrBot
         private Language _previousLanguage = Language.Current;
         private int _waitTimeout = 0;
         private static readonly Regex OverseerrRequestIdRegex = new Regex($"{Regex.Escape(DiscordConstants.OverseerrRequestIdMarker)}\\s*(\\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private readonly SemaphoreSlim _overseerrSyncGate = new SemaphoreSlim(1, 1);
 
         public ChatBot(IServiceProvider serviceProvider, ILogger<ChatBot> logger, DiscordSettingsProvider discordSettingsProvider)
         {
@@ -341,6 +343,16 @@ namespace Requestrr.WebApi.RequestrrBot
             {
                 _logger.LogError(ex, "Error while starting music notification engine: " + ex.Message);
             }
+
+            try
+            {
+                await SyncPendingOverseerrApprovalsAsync();
+                ScheduleOverseerrApprovalSyncRetries();
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogWarning(ex, "Error while syncing Overseerr approval messages.");
+            }
         }
 
 
@@ -442,12 +454,30 @@ namespace Requestrr.WebApi.RequestrrBot
                     return;
                 }
 
-                if (_currentSettings.AdminUserIds == null || !_currentSettings.AdminUserIds.Any())
+                if (_currentSettings.AdminRoleIds == null || !_currentSettings.AdminRoleIds.Any())
                 {
                     return;
                 }
 
-                if (!_currentSettings.AdminUserIds.Contains(e.User.Id.ToString()))
+                var isAdmin = false;
+                try
+                {
+                    var guild = e.Guild ?? e.Channel?.Guild;
+                    if (guild != null)
+                    {
+                        var member = await guild.GetMemberAsync(e.User.Id);
+                        if (member?.Roles != null)
+                        {
+                            isAdmin = member.Roles.Any(x => _currentSettings.AdminRoleIds.Contains(x.Id.ToString()));
+                        }
+                    }
+                }
+                catch
+                {
+                    isAdmin = false;
+                }
+
+                if (!isAdmin)
                 {
                     return;
                 }
@@ -513,6 +543,13 @@ namespace Requestrr.WebApi.RequestrrBot
         {
             try
             {
+                var existingStatus = await TryGetOverseerrRequestStatusAsync(requestId);
+                if (existingStatus.HasValue && existingStatus.Value != OverseerrClient.MediaRequestStatus.PENDING)
+                {
+                    await UpdateMessagesFromExistingStatusAsync(message, requestId, existingStatus.Value);
+                    return;
+                }
+
                 if (approved)
                 {
                     await _overseerrClient.ApproveRequestAsync(requestId);
@@ -548,12 +585,32 @@ namespace Requestrr.WebApi.RequestrrBot
                     var channel = await _client.GetChannelAsync(messageRef.ChannelId);
                     if (channel == null)
                     {
+                        if (messageRef.IsDirectMessage)
+                        {
+                            await TryUpdateRequesterDmAsync(record, messageRef, approved);
+                        }
                         continue;
                     }
 
-                    var message = await channel.GetMessageAsync(messageRef.MessageId);
+                    DiscordMessage message = null;
+                    try
+                    {
+                        message = await channel.GetMessageAsync(messageRef.MessageId);
+                    }
+                    catch (NullReferenceException)
+                    {
+                        if (messageRef.IsDirectMessage)
+                        {
+                            await TryUpdateRequesterDmAsync(record, messageRef, approved);
+                        }
+                        continue;
+                    }
                     if (message == null)
                     {
+                        if (messageRef.IsDirectMessage)
+                        {
+                            await TryUpdateRequesterDmAsync(record, messageRef, approved);
+                        }
                         continue;
                     }
 
@@ -563,6 +620,66 @@ namespace Requestrr.WebApi.RequestrrBot
                 {
                     _logger.LogWarning(ex, $"Error while updating approval message {messageRef.MessageId}.");
                 }
+            }
+        }
+
+        private async Task TryUpdateRequesterDmAsync(RequestApprovalRecord record, RequestApprovalMessageReference messageRef, bool approved)
+        {
+            if (messageRef == null || !messageRef.IsDirectMessage)
+            {
+                return;
+            }
+
+            if (record == null || record.RequesterUserId == 0)
+            {
+                return;
+            }
+
+            try
+            {
+                DiscordMember member = null;
+                foreach (var guild in _client.Guilds.Values)
+                {
+                    try
+                    {
+                        member = await guild.GetMemberAsync(record.RequesterUserId);
+                        break;
+                    }
+                    catch
+                    {
+                        // Ignore and keep searching other guilds
+                    }
+                }
+
+                if (member == null)
+                {
+                    return;
+                }
+
+                var dm = await member.CreateDmChannelAsync();
+
+                DiscordMessage message = null;
+                try
+                {
+                    message = await dm.GetMessageAsync(messageRef.MessageId);
+                }
+                catch (DSharpPlus.Exceptions.NotFoundException)
+                {
+                    var statusMessage = approved ? Language.Current.DiscordCommandRequestApproved : Language.Current.DiscordCommandRequestDenied;
+                    await dm.SendMessageAsync(statusMessage);
+                    return;
+                }
+
+                if (message == null)
+                {
+                    return;
+                }
+
+                await UpdateApprovalMessageAsync(message, approved, messageRef.IsAdmin, record.RequesterUsername);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, $"Error while updating DM approval message {messageRef.MessageId}.");
             }
         }
 
@@ -603,6 +720,189 @@ namespace Requestrr.WebApi.RequestrrBot
             return false;
         }
 
+        private async Task SyncPendingOverseerrApprovalsAsync()
+        {
+            if (_currentSettings.MovieDownloadClient != DownloadClient.Overseerr && _currentSettings.TvShowDownloadClient != DownloadClient.Overseerr)
+            {
+                return;
+            }
+
+            if (!await _overseerrSyncGate.WaitAsync(0))
+            {
+                return;
+            }
+
+            List<RequestApprovalRecord> records;
+            try
+            {
+                records = _requestApprovalRepository.GetAllSnapshots();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error while loading approval records.");
+                _overseerrSyncGate.Release();
+                return;
+            }
+
+            if (records == null || records.Count == 0)
+            {
+                _overseerrSyncGate.Release();
+                return;
+            }
+
+            foreach (var record in records)
+            {
+                try
+                {
+                    var status = await _overseerrClient.TryGetRequestStatusAsync(record.RequestId);
+                    if (!status.HasValue)
+                    {
+                        continue;
+                    }
+
+                    if (status.Value == OverseerrClient.MediaRequestStatus.PENDING)
+                    {
+                        var pendingDecision = await TryGetPendingDecisionFromMessagesAsync(record);
+                        if (pendingDecision.HasValue)
+                        {
+                            if (pendingDecision.Value)
+                            {
+                                await _overseerrClient.ApproveRequestAsync(record.RequestId);
+                            }
+                            else
+                            {
+                                await _overseerrClient.DeclineRequestAsync(record.RequestId);
+                            }
+
+                            await UpdateApprovalMessagesAsync(record, pendingDecision.Value);
+                            _requestApprovalRepository.Remove(record.RequestId);
+                        }
+
+                        continue;
+                    }
+
+                    var approved = status.Value == OverseerrClient.MediaRequestStatus.APPROVED;
+                    if (record.Messages != null && record.Messages.Any())
+                    {
+                        await UpdateApprovalMessagesAsync(record, approved);
+                    }
+
+                    _requestApprovalRepository.Remove(record.RequestId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, $"Error while syncing Overseerr request {record.RequestId}.");
+                }
+            }
+
+            _overseerrSyncGate.Release();
+        }
+
+        private async Task<bool?> TryGetPendingDecisionFromMessagesAsync(RequestApprovalRecord record)
+        {
+            if (record?.Messages == null || !record.Messages.Any())
+            {
+                return null;
+            }
+
+            foreach (var messageRef in record.Messages.OrderByDescending(x => x.IsAdmin))
+            {
+                try
+                {
+                    var channel = await _client.GetChannelAsync(messageRef.ChannelId);
+                    if (channel == null)
+                    {
+                        continue;
+                    }
+
+                    var message = await channel.GetMessageAsync(messageRef.MessageId);
+                    if (message == null)
+                    {
+                        continue;
+                    }
+
+                    var reactions = message.Reactions ?? Array.Empty<DiscordReaction>();
+                    var hasApprove = reactions.Any(x => IsApproveEmoji(x.Emoji?.Name ?? string.Empty) && x.Count > 0);
+                    var hasDeny = reactions.Any(x => IsDenyEmoji(x.Emoji?.Name ?? string.Empty) && x.Count > 0);
+
+                    if (hasApprove && hasDeny)
+                    {
+                        return null;
+                    }
+
+                    if (hasApprove)
+                    {
+                        return true;
+                    }
+
+                    if (hasDeny)
+                    {
+                        return false;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, $"Error while checking reactions for approval message {messageRef.MessageId}.");
+                }
+            }
+
+            return null;
+        }
+
+        private void ScheduleOverseerrApprovalSyncRetries()
+        {
+            _ = Task.Run(async () =>
+            {
+                var delays = new[]
+                {
+                    TimeSpan.FromSeconds(30),
+                    TimeSpan.FromMinutes(2),
+                    TimeSpan.FromMinutes(5)
+                };
+
+                foreach (var delay in delays)
+                {
+                    await Task.Delay(delay);
+                    try
+                    {
+                        await SyncPendingOverseerrApprovalsAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Error while retrying Overseerr approval sync.");
+                    }
+                }
+            });
+        }
+
+        private async Task<OverseerrClient.MediaRequestStatus?> TryGetOverseerrRequestStatusAsync(int requestId)
+        {
+            try
+            {
+                return await _overseerrClient.TryGetRequestStatusAsync(requestId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, $"Error while checking Overseerr request {requestId} status.");
+                return null;
+            }
+        }
+
+        private async Task UpdateMessagesFromExistingStatusAsync(DiscordMessage message, int requestId, OverseerrClient.MediaRequestStatus status)
+        {
+            var approved = status == OverseerrClient.MediaRequestStatus.APPROVED;
+            var approvalRecord = _requestApprovalRepository.GetSnapshot(requestId);
+            if (approvalRecord != null && approvalRecord.Messages.Any())
+            {
+                await UpdateApprovalMessagesAsync(approvalRecord, approved);
+                _requestApprovalRepository.Remove(requestId);
+            }
+            else
+            {
+                await UpdateApprovalMessageAsync(message, approved, IsAdminChannel(message.ChannelId));
+            }
+        }
+
         private static bool TryGetOverseerrRequestId(DiscordMessage message, out int requestId)
         {
             requestId = 0;
@@ -618,12 +918,12 @@ namespace Requestrr.WebApi.RequestrrBot
 
         private static bool IsApproveEmoji(string emojiName)
         {
-            return emojiName == "👍" || emojiName == "✅";
+            return emojiName == "✅";
         }
 
         private static bool IsDenyEmoji(string emojiName)
         {
-            return emojiName == "👎" || emojiName == "❌";
+            return emojiName == "❌";
         }
 
         private async Task SlashCommandErrorHandler(SlashCommandsExtension extension, SlashCommandErrorEventArgs args)

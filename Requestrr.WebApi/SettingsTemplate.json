@@ -12,7 +12,7 @@
       "TvShowRoles": [],
       "MovieRoles": [],
       "MusicRoles": [],
-      "AdminUserIds": [],
+      "AdminRoleIds": [],
       "AdminChannelIds": [],
       "AdminChannelAllRequests": false,
       "MonitoredChannels": [],
@@ -132,5 +132,5 @@
   "Port": 4545,
   "BaseUrl": "",
   "DisableAuthentication": false,
-  "Version": "2.1.6"
+  "Version": "2.1.4"
 }

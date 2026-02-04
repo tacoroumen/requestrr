@@ -23,7 +23,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
 
         public string[] MusicRoles { get; set; }
 
-        public string[] AdminUserIds { get; set; }
+        public string[] AdminRoleIds { get; set; }
 
         public string[] AdminChannelIds { get; set; }
 

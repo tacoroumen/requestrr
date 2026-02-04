@@ -39,7 +39,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 TvShowRoles = _chatClientsSettings.Discord.TvShowRoles ?? Array.Empty<string>(),
                 MovieRoles = _chatClientsSettings.Discord.MovieRoles ?? Array.Empty<string>(),
                 MusicRoles = _chatClientsSettings.Discord.MusicRoles ?? Array.Empty<string>(),
-                AdminUserIds = _chatClientsSettings.Discord.AdminUserIds ?? Array.Empty<string>(),
+                AdminRoleIds = _chatClientsSettings.Discord.AdminRoleIds ?? Array.Empty<string>(),
                 AdminChannelIds = _chatClientsSettings.Discord.AdminChannelIds ?? Array.Empty<string>(),
                 AdminChannelAllRequests = _chatClientsSettings.Discord.AdminChannelAllRequests,
                 MonitoredChannels = _chatClientsSettings.Discord.MonitoredChannels ?? Array.Empty<string>(),
@@ -147,9 +147,9 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 return BadRequest("Invalid notification channels, please make sure to enter the discord channel ids.");
             }
 
-            if ((model.AdminUserIds ?? Array.Empty<string>()).Any(x => !ulong.TryParse(x, System.Globalization.NumberStyles.Integer, null, out _)))
+            if ((model.AdminRoleIds ?? Array.Empty<string>()).Any(x => !ulong.TryParse(x, System.Globalization.NumberStyles.Integer, null, out _)))
             {
-                return BadRequest("Invalid admin user ids, please make sure to enter the discord user ids.");
+                return BadRequest("Invalid admin role ids, please make sure to enter the discord role ids.");
             }
 
             if ((model.AdminChannelIds ?? Array.Empty<string>()).Any(x => !ulong.TryParse(x, System.Globalization.NumberStyles.Integer, null, out _)))
@@ -168,7 +168,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
             _chatClientsSettings.Discord.TvShowRoles = (model.TvShowRoles ?? Array.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray();
             _chatClientsSettings.Discord.MovieRoles = (model.MovieRoles ?? Array.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray();
             _chatClientsSettings.Discord.MusicRoles = (model.MusicRoles ?? Array.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray();
-            _chatClientsSettings.Discord.AdminUserIds = (model.AdminUserIds ?? Array.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray();
+            _chatClientsSettings.Discord.AdminRoleIds = (model.AdminRoleIds ?? Array.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray();
             _chatClientsSettings.Discord.AdminChannelIds = (model.AdminChannelIds ?? Array.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray();
             _chatClientsSettings.Discord.AdminChannelAllRequests = model.AdminChannelAllRequests;
             _chatClientsSettings.Discord.EnableRequestsThroughDirectMessages = model.EnableRequestsThroughDirectMessages;

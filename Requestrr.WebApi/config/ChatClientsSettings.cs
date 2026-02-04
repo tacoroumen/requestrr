@@ -15,7 +15,7 @@ namespace Requestrr.WebApi.config
         public string[] MovieRoles { get; set; }
         public string[] MusicRoles { get; set; }
         public string[] MonitoredChannels { get; set; }
-        public string[] AdminUserIds { get; set; }
+        public string[] AdminRoleIds { get; set; }
         public string[] AdminChannelIds { get; set; }
         public bool AdminChannelAllRequests { get; set; }
         public bool EnableRequestsThroughDirectMessages { get; set; }

@@ -852,6 +852,21 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Overseerr
             return true;
         }
 
+        public async Task<MediaRequestStatus?> TryGetRequestStatusAsync(int requestId)
+        {
+            var response = await HttpGetAsync($"{BaseURL}request/{requestId}");
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+
+            var content = await response.Content.ReadAsStringAsync();
+            await response.ThrowIfNotSuccessfulAsync("OverseerrGetRequest failed", x => x.error);
+
+            var request = JsonConvert.DeserializeObject<JSONRequest>(content);
+            return request?.Status;
+        }
+
 
         /// <summary>
         /// Allow for searching for TVDB Ids

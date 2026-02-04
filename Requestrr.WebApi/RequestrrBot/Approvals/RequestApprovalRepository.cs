@@ -31,7 +31,15 @@ namespace Requestrr.WebApi.RequestrrBot.Approvals
             return null;
         }
 
-        public void AddMessage(int requestId, string requesterUsername, ulong channelId, ulong messageId, bool isAdmin)
+        public List<RequestApprovalRecord> GetAllSnapshots()
+        {
+            lock (_lock)
+            {
+                return _records.Values.Select(x => x.Clone()).ToList();
+            }
+        }
+
+        public void AddMessage(int requestId, string requesterUsername, ulong requesterUserId, ulong channelId, ulong messageId, bool isAdmin, bool isDirectMessage)
         {
             lock (_lock)
             {
@@ -40,12 +48,17 @@ namespace Requestrr.WebApi.RequestrrBot.Approvals
                     record = new RequestApprovalRecord
                     {
                         RequestId = requestId,
-                        RequesterUsername = requesterUsername ?? string.Empty
+                        RequesterUsername = requesterUsername ?? string.Empty,
+                        RequesterUserId = requesterUserId
                     };
                 }
                 else if (!string.IsNullOrWhiteSpace(requesterUsername))
                 {
                     record.RequesterUsername = requesterUsername;
+                }
+                else if (record.RequesterUserId == 0 && requesterUserId != 0)
+                {
+                    record.RequesterUserId = requesterUserId;
                 }
 
                 if (!record.Messages.Any(x => x.ChannelId == channelId && x.MessageId == messageId))
@@ -54,7 +67,8 @@ namespace Requestrr.WebApi.RequestrrBot.Approvals
                     {
                         ChannelId = channelId,
                         MessageId = messageId,
-                        IsAdmin = isAdmin
+                        IsAdmin = isAdmin,
+                        IsDirectMessage = isDirectMessage
                     });
                 }
 
@@ -124,19 +138,22 @@ namespace Requestrr.WebApi.RequestrrBot.Approvals
     {
         public int RequestId { get; set; }
         public string RequesterUsername { get; set; } = string.Empty;
+        public ulong RequesterUserId { get; set; }
         public List<RequestApprovalMessageReference> Messages { get; set; } = new List<RequestApprovalMessageReference>();
 
         public RequestApprovalRecord Clone()
         {
             return new RequestApprovalRecord
-            {
-                RequestId = RequestId,
-                RequesterUsername = RequesterUsername,
+                {
+                    RequestId = RequestId,
+                    RequesterUsername = RequesterUsername,
+                    RequesterUserId = RequesterUserId,
                 Messages = Messages.Select(x => new RequestApprovalMessageReference
                 {
                     ChannelId = x.ChannelId,
                     MessageId = x.MessageId,
-                    IsAdmin = x.IsAdmin
+                    IsAdmin = x.IsAdmin,
+                    IsDirectMessage = x.IsDirectMessage
                 }).ToList()
             };
         }
@@ -147,5 +164,6 @@ namespace Requestrr.WebApi.RequestrrBot.Approvals
         public ulong ChannelId { get; set; }
         public ulong MessageId { get; set; }
         public bool IsAdmin { get; set; }
+        public bool IsDirectMessage { get; set; }
     }
 }

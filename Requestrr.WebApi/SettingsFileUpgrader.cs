@@ -303,23 +303,27 @@ namespace Requestrr.WebApi
             {
                 settingsJson.Version = "2.1.4";
 
-                ((JObject)settingsJson.ChatClients.Discord).Add("AdminUserIds", JToken.FromObject(new List<string>()));
-                File.WriteAllText(settingsFilePath, JsonConvert.SerializeObject(settingsJson));
-            }
+                var discordSettings = (JObject)settingsJson.ChatClients.Discord;
+                if (discordSettings.Property("AdminRoleIds") == null)
+                {
+                    discordSettings.Add("AdminRoleIds", JToken.FromObject(new List<string>()));
+                }
 
-            if (settingsJson.Version.ToString().Equals("2.1.4", StringComparison.InvariantCultureIgnoreCase))
-            {
-                settingsJson.Version = "2.1.5";
+                if (discordSettings.Property("AdminChannelIds") == null)
+                {
+                    discordSettings.Add("AdminChannelIds", JToken.FromObject(new List<string>()));
+                }
 
-                ((JObject)settingsJson.ChatClients.Discord).Add("AdminChannelIds", JToken.FromObject(new List<string>()));
-                File.WriteAllText(settingsFilePath, JsonConvert.SerializeObject(settingsJson));
-            }
+                if (discordSettings.Property("AdminChannelAllRequests") == null)
+                {
+                    discordSettings.Add("AdminChannelAllRequests", false);
+                }
 
-            if (settingsJson.Version.ToString().Equals("2.1.5", StringComparison.InvariantCultureIgnoreCase))
-            {
-                settingsJson.Version = "2.1.6";
+                if (discordSettings.Property("AdminUserIds") != null)
+                {
+                    discordSettings.Remove("AdminUserIds");
+                }
 
-                ((JObject)settingsJson.ChatClients.Discord).Add("AdminChannelAllRequests", false);
                 File.WriteAllText(settingsFilePath, JsonConvert.SerializeObject(settingsJson));
             }
         }
