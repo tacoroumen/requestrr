@@ -29,6 +29,10 @@ namespace Requestrr.WebApi.Controllers.ChatClients
 
         public bool AdminChannelAllRequests { get; set; }
 
+        public string ApprovalEmojiApprove { get; set; }
+
+        public string ApprovalEmojiDeny { get; set; }
+
         public bool EnableRequestsThroughDirectMessages { get; set; }
 
         public bool AutomaticallyNotifyRequesters { get; set; }

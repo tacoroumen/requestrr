@@ -23,6 +23,8 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 settings.ChatClients.Discord.AdminRoleIds = JToken.FromObject(chatClientsSettings.Discord.AdminRoleIds);
                 settings.ChatClients.Discord.AdminChannelIds = JToken.FromObject(chatClientsSettings.Discord.AdminChannelIds);
                 settings.ChatClients.Discord.AdminChannelAllRequests = chatClientsSettings.Discord.AdminChannelAllRequests;
+                settings.ChatClients.Discord.ApprovalEmojiApprove = chatClientsSettings.Discord.ApprovalEmojiApprove;
+                settings.ChatClients.Discord.ApprovalEmojiDeny = chatClientsSettings.Discord.ApprovalEmojiDeny;
                 settings.ChatClients.Discord.EnableRequestsThroughDirectMessages = chatClientsSettings.Discord.EnableRequestsThroughDirectMessages;
                 settings.ChatClients.Discord.AutomaticallyNotifyRequesters = chatClientsSettings.Discord.AutomaticallyNotifyRequesters;
                 settings.ChatClients.Discord.NotificationMode = chatClientsSettings.Discord.NotificationMode;

@@ -21,6 +21,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
         public string[] AdminRoleIds { get; set; }
         public string[] AdminChannelIds { get; set; }
         public bool AdminChannelAllRequests { get; set; }
+        public string ApprovalEmojiApprove { get; set; }
+        public string ApprovalEmojiDeny { get; set; }
         public bool EnableRequestsThroughDirectMessages { get; set; }
         public bool AutomaticallyNotifyRequesters { get; set; }
         public string NotificationMode { get; set; }
@@ -46,6 +48,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                    (AdminRoleIds ?? Array.Empty<string>()).SequenceEqual(settings.AdminRoleIds ?? Array.Empty<string>()) &&
                    (AdminChannelIds ?? Array.Empty<string>()).SequenceEqual(settings.AdminChannelIds ?? Array.Empty<string>()) &&
                    AdminChannelAllRequests == settings.AdminChannelAllRequests &&
+                   ApprovalEmojiApprove == settings.ApprovalEmojiApprove &&
+                   ApprovalEmojiDeny == settings.ApprovalEmojiDeny &&
                    EnableRequestsThroughDirectMessages == settings.EnableRequestsThroughDirectMessages &&
                    AutomaticallyNotifyRequesters == settings.AutomaticallyNotifyRequesters &&
                    NotificationMode == settings.NotificationMode &&
@@ -72,6 +76,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             hash.Add(AdminRoleIds);
             hash.Add(AdminChannelIds);
             hash.Add(AdminChannelAllRequests);
+            hash.Add(ApprovalEmojiApprove);
+            hash.Add(ApprovalEmojiDeny);
             hash.Add(EnableRequestsThroughDirectMessages);
             hash.Add(AutomaticallyNotifyRequesters);
             hash.Add(NotificationMode);

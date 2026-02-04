@@ -319,6 +319,16 @@ namespace Requestrr.WebApi
                     discordSettings.Add("AdminChannelAllRequests", false);
                 }
 
+                if (discordSettings.Property("ApprovalEmojiApprove") == null)
+                {
+                    discordSettings.Add("ApprovalEmojiApprove", "✅");
+                }
+
+                if (discordSettings.Property("ApprovalEmojiDeny") == null)
+                {
+                    discordSettings.Add("ApprovalEmojiDeny", "❌");
+                }
+
                 if (discordSettings.Property("AdminUserIds") != null)
                 {
                     discordSettings.Remove("AdminUserIds");

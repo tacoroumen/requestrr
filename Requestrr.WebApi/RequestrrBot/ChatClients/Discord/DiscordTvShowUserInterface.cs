@@ -146,6 +146,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
         public async Task DisplayRequestPendingForSeasonAsync(TvShow tvShow, TvSeason requestedSeason, int requestId)
         {
             var settings = _settingsProvider.Provide();
+            var approveEmoji = string.IsNullOrWhiteSpace(settings.ApprovalEmojiApprove) ? "✅" : settings.ApprovalEmojiApprove.Trim();
+            var denyEmoji = string.IsNullOrWhiteSpace(settings.ApprovalEmojiDeny) ? "❌" : settings.ApprovalEmojiDeny.Trim();
             var baseEmbed = GenerateTvShowDetailsAsync(tvShow);
             var footerText = string.IsNullOrWhiteSpace(baseEmbed.Footer?.Text)
                 ? $"{DiscordConstants.OverseerrRequestIdMarker} {requestId}"
@@ -155,15 +157,39 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                 .Build();
             var message = requestedSeason is AllTvSeasons
                 ? settings.AutomaticallyPurgeCommandMessages
-                    ? Language.Current.DiscordCommandTvRequestPendingAllSeasonsSilent.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
-                    : Language.Current.DiscordCommandTvRequestPendingAllSeasons.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
+                    ? Language.Current.DiscordCommandTvRequestPendingAllSeasonsSilent.ReplaceTokens(tvShow, requestedSeason.SeasonNumber, new Dictionary<string, string>
+                    {
+                        { LanguageTokens.ApproveEmoji, approveEmoji },
+                        { LanguageTokens.DenyEmoji, denyEmoji }
+                    })
+                    : Language.Current.DiscordCommandTvRequestPendingAllSeasons.ReplaceTokens(tvShow, requestedSeason.SeasonNumber, new Dictionary<string, string>
+                    {
+                        { LanguageTokens.ApproveEmoji, approveEmoji },
+                        { LanguageTokens.DenyEmoji, denyEmoji }
+                    })
                 : requestedSeason is FutureTvSeasons
                     ? settings.AutomaticallyPurgeCommandMessages
-                        ? Language.Current.DiscordCommandTvRequestPendingFutureSeasonsSilent.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
-                        : Language.Current.DiscordCommandTvRequestPendingFutureSeasons.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
+                        ? Language.Current.DiscordCommandTvRequestPendingFutureSeasonsSilent.ReplaceTokens(tvShow, requestedSeason.SeasonNumber, new Dictionary<string, string>
+                        {
+                            { LanguageTokens.ApproveEmoji, approveEmoji },
+                            { LanguageTokens.DenyEmoji, denyEmoji }
+                        })
+                        : Language.Current.DiscordCommandTvRequestPendingFutureSeasons.ReplaceTokens(tvShow, requestedSeason.SeasonNumber, new Dictionary<string, string>
+                        {
+                            { LanguageTokens.ApproveEmoji, approveEmoji },
+                            { LanguageTokens.DenyEmoji, denyEmoji }
+                        })
                     : settings.AutomaticallyPurgeCommandMessages
-                        ? Language.Current.DiscordCommandTvRequestPendingSeasonSilent.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
-                        : Language.Current.DiscordCommandTvRequestPendingSeason.ReplaceTokens(tvShow, requestedSeason.SeasonNumber);
+                        ? Language.Current.DiscordCommandTvRequestPendingSeasonSilent.ReplaceTokens(tvShow, requestedSeason.SeasonNumber, new Dictionary<string, string>
+                        {
+                            { LanguageTokens.ApproveEmoji, approveEmoji },
+                            { LanguageTokens.DenyEmoji, denyEmoji }
+                        })
+                        : Language.Current.DiscordCommandTvRequestPendingSeason.ReplaceTokens(tvShow, requestedSeason.SeasonNumber, new Dictionary<string, string>
+                        {
+                            { LanguageTokens.ApproveEmoji, approveEmoji },
+                            { LanguageTokens.DenyEmoji, denyEmoji }
+                        });
 
             var builder = (await AddPreviousDropdownsAsync(tvShow, new DiscordWebhookBuilder().AddEmbed(embed)))
                 .WithContent(message);
@@ -176,15 +202,15 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             {
                 try
                 {
-                    await originalMessage.CreateReactionAsync(DiscordEmoji.FromUnicode("✅"));
-                    await originalMessage.CreateReactionAsync(DiscordEmoji.FromUnicode("❌"));
+                    await originalMessage.CreateReactionAsync(DiscordEmoji.FromUnicode(approveEmoji));
+                    await originalMessage.CreateReactionAsync(DiscordEmoji.FromUnicode(denyEmoji));
                 }
                 catch
                 {
                     // Ignore reaction failures
                 }
             }
-            await SendAdminPendingMessageAsync(tvShow, embed, requestId);
+            await SendAdminPendingMessageAsync(tvShow, embed, requestId, approveEmoji, denyEmoji);
         }
 
         public async Task DisplayTvShowDetailsForSeasonAsync(TvShowRequest request, TvShow tvShow, TvSeason season)
@@ -486,7 +512,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             return builder;
         }
 
-        private async Task SendAdminPendingMessageAsync(TvShow tvShow, DiscordEmbed embed, int requestId)
+        private async Task SendAdminPendingMessageAsync(TvShow tvShow, DiscordEmbed embed, int requestId, string approveEmoji, string denyEmoji)
         {
             var settings = _settingsProvider.Provide();
             if (settings.AdminChannelIds == null || !settings.AdminChannelIds.Any())
@@ -495,7 +521,9 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             }
 
             var adminPrompt = Language.Current.DiscordCommandRequestPendingAdmin
-                .ReplaceTokens(LanguageTokens.AuthorUsername, _interactionContext.User.Username);
+                .ReplaceTokens(LanguageTokens.AuthorUsername, _interactionContext.User.Username)
+                .ReplaceTokens(LanguageTokens.ApproveEmoji, approveEmoji)
+                .ReplaceTokens(LanguageTokens.DenyEmoji, denyEmoji);
 
             var builder = new DiscordMessageBuilder()
                 .WithContent(adminPrompt)
@@ -515,8 +543,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                     _approvalRepository.AddMessage(requestId, _interactionContext.User.Username, _interactionContext.User.Id, adminRequestMessage.ChannelId, adminRequestMessage.Id, true, false);
                     try
                     {
-                        await adminRequestMessage.CreateReactionAsync(DiscordEmoji.FromUnicode("✅"));
-                        await adminRequestMessage.CreateReactionAsync(DiscordEmoji.FromUnicode("❌"));
+                        await adminRequestMessage.CreateReactionAsync(DiscordEmoji.FromUnicode(approveEmoji));
+                        await adminRequestMessage.CreateReactionAsync(DiscordEmoji.FromUnicode(denyEmoji));
                     }
                     catch
                     {

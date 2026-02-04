@@ -14,6 +14,8 @@ export default function ChatClientsReducer(state = {}, action) {
       adminRoleIds: action.payload.adminRoleIds,
       adminChannelIds: action.payload.adminChannelIds,
       adminChannelAllRequests: action.payload.adminChannelAllRequests,
+      approvalEmojiApprove: action.payload.approvalEmojiApprove,
+      approvalEmojiDeny: action.payload.approvalEmojiDeny,
       enableRequestsThroughDirectMessages: action.payload.enableRequestsThroughDirectMessages,
       automaticallyNotifyRequesters: action.payload.automaticallyNotifyRequesters,
       notificationMode: action.payload.notificationMode,

@@ -18,6 +18,8 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
         public static string IssueTitle = "[Title]";
         public static string IssueUsername = "[Username]";
         public static string RequestStatus = "[RequestStatus]";
+        public static string ApproveEmoji = "[ApproveEmoji]";
+        public static string DenyEmoji = "[DenyEmoji]";
 
         public static string FullCommandList = "[FullCommandList]";
 

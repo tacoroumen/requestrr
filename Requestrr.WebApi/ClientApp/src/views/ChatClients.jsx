@@ -71,6 +71,8 @@ function ChatClients(props) {
   const [adminRoleIds, setAdminRoleIds] = useState([]);
   const [adminChannelIds, setAdminChannelIds] = useState([]);
   const [adminChannelAllRequests, setAdminChannelAllRequests] = useState(false);
+  const [approvalEmojiApprove, setApprovalEmojiApprove] = useState("✅");
+  const [approvalEmojiDeny, setApprovalEmojiDeny] = useState("❌");
   const [automaticallyNotifyRequesters, setAutomaticallyNotifyRequesters] = useState(true);
   const [notificationMode, setNotificationMode] = useState("PrivateMessages");
   const [notificationChannels, setNotificationChannels] = useState([]);
@@ -97,6 +99,8 @@ function ChatClients(props) {
         setAdminRoleIds(data.payload.adminRoleIds || []);
         setAdminChannelIds(data.payload.adminChannelIds || []);
         setAdminChannelAllRequests(data.payload.adminChannelAllRequests || false);
+        setApprovalEmojiApprove(data.payload.approvalEmojiApprove || "✅");
+        setApprovalEmojiDeny(data.payload.approvalEmojiDeny || "❌");
         setAutomaticallyNotifyRequesters(data.payload.automaticallyNotifyRequesters);
         setNotificationMode(data.payload.notificationMode);
         setNotificationChannels(data.payload.notificationChannels);
@@ -201,6 +205,8 @@ function ChatClients(props) {
           adminRoleIds: adminRoleIds,
           adminChannelIds: adminChannelIds,
           adminChannelAllRequests: adminChannelAllRequests,
+          approvalEmojiApprove: approvalEmojiApprove,
+          approvalEmojiDeny: approvalEmojiDeny,
           enableRequestsThroughDirectMessages: enableRequestsThroughDirectMessages,
           automaticallyNotifyRequesters: automaticallyNotifyRequesters,
           notificationMode: notificationMode,
@@ -478,6 +484,42 @@ function ChatClients(props) {
                             selectedItems={adminChannelIds.map(x => { return { name: x, id: x } })}
                             items={adminChannelIds.map(x => { return { name: x, id: x } })}
                             onChange={newChannelIds => setAdminChannelIds(newChannelIds.filter(x => /\S/.test(x.id)).map(x => x.id.trim()))} />
+                        </FormGroup>
+                      </Col>
+                      <Col lg="6">
+                        <FormGroup>
+                          <label
+                            className="form-control-label"
+                            htmlFor="input-approval-emoji-approve"
+                          >
+                            Approval emoji (Unicode only)
+                          </label>
+                          <Input
+                            value={approvalEmojiApprove}
+                            onChange={e => setApprovalEmojiApprove(e.target.value)}
+                            className="form-control-alternative"
+                            id="input-approval-emoji-approve"
+                            placeholder="✅"
+                            type="text"
+                          />
+                        </FormGroup>
+                      </Col>
+                      <Col lg="6">
+                        <FormGroup>
+                          <label
+                            className="form-control-label"
+                            htmlFor="input-approval-emoji-deny"
+                          >
+                            Deny emoji (Unicode only)
+                          </label>
+                          <Input
+                            value={approvalEmojiDeny}
+                            onChange={e => setApprovalEmojiDeny(e.target.value)}
+                            className="form-control-alternative"
+                            id="input-approval-emoji-deny"
+                            placeholder="❌"
+                            type="text"
+                          />
                         </FormGroup>
                       </Col>
                     </Row>

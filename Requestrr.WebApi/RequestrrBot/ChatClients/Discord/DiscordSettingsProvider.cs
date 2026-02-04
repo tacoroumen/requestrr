@@ -34,6 +34,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                 AdminRoleIds = settings.ChatClients.Discord.AdminRoleIds.ToObject<string[]>() ?? Array.Empty<string>(),
                 AdminChannelIds = settings.ChatClients.Discord.AdminChannelIds.ToObject<string[]>() ?? Array.Empty<string>(),
                 AdminChannelAllRequests = (bool)settings.ChatClients.Discord.AdminChannelAllRequests,
+                ApprovalEmojiApprove = settings.ChatClients.Discord.ApprovalEmojiApprove,
+                ApprovalEmojiDeny = settings.ChatClients.Discord.ApprovalEmojiDeny,
                 ClientID = settings.ChatClients.Discord.ClientId,
                 EnableRequestsThroughDirectMessages = settings.ChatClients.Discord.EnableRequestsThroughDirectMessages,
                 AutomaticallyNotifyRequesters = settings.ChatClients.Discord.AutomaticallyNotifyRequesters,

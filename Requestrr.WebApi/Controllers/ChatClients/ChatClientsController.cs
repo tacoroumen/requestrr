@@ -42,6 +42,8 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 AdminRoleIds = _chatClientsSettings.Discord.AdminRoleIds ?? Array.Empty<string>(),
                 AdminChannelIds = _chatClientsSettings.Discord.AdminChannelIds ?? Array.Empty<string>(),
                 AdminChannelAllRequests = _chatClientsSettings.Discord.AdminChannelAllRequests,
+                ApprovalEmojiApprove = _chatClientsSettings.Discord.ApprovalEmojiApprove,
+                ApprovalEmojiDeny = _chatClientsSettings.Discord.ApprovalEmojiDeny,
                 MonitoredChannels = _chatClientsSettings.Discord.MonitoredChannels ?? Array.Empty<string>(),
                 AutomaticallyNotifyRequesters = _chatClientsSettings.Discord.AutomaticallyNotifyRequesters,
                 NotificationMode = _chatClientsSettings.Discord.NotificationMode,
@@ -171,6 +173,8 @@ namespace Requestrr.WebApi.Controllers.ChatClients
             _chatClientsSettings.Discord.AdminRoleIds = (model.AdminRoleIds ?? Array.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray();
             _chatClientsSettings.Discord.AdminChannelIds = (model.AdminChannelIds ?? Array.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray();
             _chatClientsSettings.Discord.AdminChannelAllRequests = model.AdminChannelAllRequests;
+            _chatClientsSettings.Discord.ApprovalEmojiApprove = model.ApprovalEmojiApprove?.Trim();
+            _chatClientsSettings.Discord.ApprovalEmojiDeny = model.ApprovalEmojiDeny?.Trim();
             _chatClientsSettings.Discord.EnableRequestsThroughDirectMessages = model.EnableRequestsThroughDirectMessages;
             _chatClientsSettings.Discord.MonitoredChannels = (model.MonitoredChannels ?? Array.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray();
 

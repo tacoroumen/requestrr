@@ -62,6 +62,8 @@ namespace Requestrr.WebApi.RequestrrBot
         private int _waitTimeout = 0;
         private static readonly Regex OverseerrRequestIdRegex = new Regex($"{Regex.Escape(DiscordConstants.OverseerrRequestIdMarker)}\\s*(\\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private readonly SemaphoreSlim _overseerrSyncGate = new SemaphoreSlim(1, 1);
+        private const string DefaultApprovalEmojiApprove = "✅";
+        private const string DefaultApprovalEmojiDeny = "❌";
 
         public ChatBot(IServiceProvider serviceProvider, ILogger<ChatBot> logger, DiscordSettingsProvider discordSettingsProvider)
         {
@@ -916,14 +918,34 @@ namespace Requestrr.WebApi.RequestrrBot
             return match.Success && int.TryParse(match.Groups[1].Value, out requestId);
         }
 
-        private static bool IsApproveEmoji(string emojiName)
+        private bool IsApproveEmoji(string emojiName)
         {
-            return emojiName == "✅";
+            return string.Equals(emojiName, GetApprovalEmojiApprove(), StringComparison.Ordinal);
         }
 
-        private static bool IsDenyEmoji(string emojiName)
+        private bool IsDenyEmoji(string emojiName)
         {
-            return emojiName == "❌";
+            return string.Equals(emojiName, GetApprovalEmojiDeny(), StringComparison.Ordinal);
+        }
+
+        private string GetApprovalEmojiApprove()
+        {
+            if (!string.IsNullOrWhiteSpace(_currentSettings?.ApprovalEmojiApprove))
+            {
+                return _currentSettings.ApprovalEmojiApprove.Trim();
+            }
+
+            return DefaultApprovalEmojiApprove;
+        }
+
+        private string GetApprovalEmojiDeny()
+        {
+            if (!string.IsNullOrWhiteSpace(_currentSettings?.ApprovalEmojiDeny))
+            {
+                return _currentSettings.ApprovalEmojiDeny.Trim();
+            }
+
+            return DefaultApprovalEmojiDeny;
         }
 
         private async Task SlashCommandErrorHandler(SlashCommandsExtension extension, SlashCommandErrorEventArgs args)
