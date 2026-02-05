@@ -587,7 +587,7 @@ namespace Requestrr.WebApi.RequestrrBot
                     }
 
                     await CreateTvShowIssueWorkFlow(e, int.Parse(category))
-                        .HandleIssueTVSelectionAsync(int.Parse(tvShow), issue, seasonNumber, episodeNumber);
+                        .HandleIssueTvSelectionAsync(int.Parse(tvShow), issue, seasonNumber, episodeNumber);
                 }
             }
             else if (e.Id.ToLower().StartsWith("tirse"))
@@ -612,7 +612,7 @@ namespace Requestrr.WebApi.RequestrrBot
                     }
 
                     await CreateTvShowIssueWorkFlow(e, int.Parse(category))
-                        .HandleIssueTVSelectionAsync(int.Parse(tvShow), issue, seasonNumber, episodeNumber);
+                        .HandleIssueTvSelectionAsync(int.Parse(tvShow), issue, seasonNumber, episodeNumber);
                 }
             }
             else if (e.Id.ToLower().StartsWith("tirs"))
@@ -628,7 +628,7 @@ namespace Requestrr.WebApi.RequestrrBot
                         string tvShow = values[1];
                         string issue = values.Length >= 3 ? values[2] : string.Empty;
 
-                        await CreateTvShowIssueWorkFlow(e, int.Parse(category)).HandleIssueTVSelectionAsync(int.Parse(tvShow), issue);
+                        await CreateTvShowIssueWorkFlow(e, int.Parse(category)).HandleIssueTvSelectionAsync(int.Parse(tvShow), issue);
                     }
                     else
                     {
@@ -644,7 +644,7 @@ namespace Requestrr.WebApi.RequestrrBot
                         }
 
                         await CreateTvShowIssueWorkFlow(e, int.Parse(category))
-                            .HandleIssueTVSelectionAsync(int.Parse(tvShow), selectedValue, seasonNumber, episodeNumber);
+                            .HandleIssueTvSelectionAsync(int.Parse(tvShow), selectedValue, seasonNumber, episodeNumber);
                     }
                 }
             }

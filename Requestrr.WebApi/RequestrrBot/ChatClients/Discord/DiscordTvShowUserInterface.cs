@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using DSharpPlus;
 using DSharpPlus.Entities;
 using Requestrr.WebApi.RequestrrBot.Locale;
-using Requestrr.WebApi.RequestrrBot.Movies;
 using Requestrr.WebApi.RequestrrBot.TvShows;
 
 namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
@@ -158,7 +157,9 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
         /// </summary>
         /// <param name="request"></param>
         /// <param name="tvShow"></param>
-        /// <param name="issue"></param>
+        /// <param name="issue">String of issue</param>
+        /// <param name="seasonNumber">Season number being reported</param>
+        /// <param name="episodeNumber">Episode number being reported</param>
         /// <returns></returns>
         public async Task DisplayTvShowIssueDetailsAsync(TvShowRequest request, TvShow tvShow, string issue, int? seasonNumber, int? episodeNumber)
         {
@@ -249,8 +250,10 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
         /// Used to handle the submitting of a Modal back to the user when an issue is being submitted
         /// </summary>
         /// <param name="request"></param>
-        /// <param name="movie"></param>
-        /// <param name="issue"></param>
+        /// <param name="tvShow"></param>
+        /// <param name="issue">String of issue</param>
+        /// <param name="seasonNumber">Season number being reported</param>
+        /// <param name="episodeNumber">Episode number being reported</param>
         /// <returns></returns>
         public async Task DisplayTvShowIssueModalAsync(TvShowRequest request, TvShow tvShow, string issue, int? seasonNumber, int? episodeNumber) //MovieRequest request, Movie movie, string issue)
         {

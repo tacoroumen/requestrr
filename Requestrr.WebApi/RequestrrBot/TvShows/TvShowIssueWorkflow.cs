@@ -161,25 +161,30 @@ namespace Requestrr.WebApi.RequestrrBot.TvShows
 
 
         /// <summary>
-        /// Handle the converting of a TMDB ID to the title name 
+        /// Handle the converting of a TVDM ID to the title name 
         /// </summary>
-        /// <param name="theMovieDbId"></param>
+        /// <param name="theTvDbId">TV Show TVDB Id</param>
+        /// <param name="issue">String of issue</param>
+        /// <param name="seasonNumber">Season number being reported</param>
+        /// <param name="episodeNumber">Episode number being reported</param>
         /// <returns></returns>
-        public async Task HandleIssueTVSelectionAsync(int theTVDbId, string issue = "", int? seasonNumber = null, int? episodeNumber = null)
+        public async Task HandleIssueTvSelectionAsync(int theTvDbId, string issue = "", int? seasonNumber = null, int? episodeNumber = null)
         {
-            var tvShow = await GetTvShowAsync(theTVDbId);
+            var tvShow = await GetTvShowAsync(theTvDbId);
             tvShow = await EnsureSeasonEpisodesAsync(tvShow, seasonNumber);
-            await HandleIssueTVSelectionAsync(tvShow, issue, seasonNumber, episodeNumber);
+            await HandleIssueTvSelectionAsync(tvShow, issue, seasonNumber, episodeNumber);
         }
 
 
         /// <summary>
         /// Handle responce to submit issues for a TV Show
         /// </summary>
-        /// <param name="tvShow"></param>
-        /// <param name="issue"></param>
+        /// <param name="tvShow">TV Show media data</param>
+        /// <param name="issue">String of issue</param>
+        /// <param name="seasonNumber">Season number being reported</param>
+        /// <param name="episodeNumber">Episode number being reported</param>
         /// <returns></returns>
-        private async Task HandleIssueTVSelectionAsync(TvShow tvShow, string issue = "", int? seasonNumber = null, int? episodeNumber = null)
+        private async Task HandleIssueTvSelectionAsync(TvShow tvShow, string issue = "", int? seasonNumber = null, int? episodeNumber = null)
         {
             await _userInterface.DisplayTvShowIssueDetailsAsync(new TvShowRequest(_user, _categoryId), tvShow, issue, seasonNumber, episodeNumber);
         }
@@ -188,12 +193,14 @@ namespace Requestrr.WebApi.RequestrrBot.TvShows
         /// <summary>
         /// Handles responce to Discord responce service to handle creating Modal
         /// </summary>
-        /// <param name="tvShow"></param>
-        /// <param name="issue"></param>
+        /// <param name="theTvDbId">TV Show TVDB Id</param>
+        /// <param name="issue">String of issue</param>
+        /// <param name="seasonNumber">Season number being reported</param>
+        /// <param name="episodeNumber">Episode number being reported</param>
         /// <returns></returns>
-        public async Task HandleIssueTvShowSendModalAsync(int theTVDbId, string issue, int? seasonNumber = null, int? episodeNumber = null) //TvShow tvShow, string issue = "")
+        public async Task HandleIssueTvShowSendModalAsync(int theTvDbId, string issue, int? seasonNumber = null, int? episodeNumber = null) //TvShow tvShow, string issue = "")
         {
-            var tvShow = await GetTvShowAsync(theTVDbId);
+            var tvShow = await GetTvShowAsync(theTvDbId);
             tvShow = await EnsureSeasonEpisodesAsync(tvShow, seasonNumber);
             await _userInterface.DisplayTvShowIssueModalAsync(
                 new TvShowRequest(_user, _categoryId),
