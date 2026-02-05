@@ -124,6 +124,8 @@
   "Discord.Command.Movie.Issue.Success": "您的 **[MovieTitle]** 問題已成功發送！",
   "Discord.Command.Movie.Issue.Failed": "您的 **[MovieTitle]** 問題未能提交！",
   "Discord.Command.Tv.Issue.Select": "請選擇此消息下的電視節目和問題。",
+  "Discord.Command.Tv.Issue.Help.Episodes.Dropdown": "点击这里选择一集",
+  "Discord.Command.Tv.Issue.Help.Episodes.FullSeason": "完整赛季",
   "Discord.Command.Tv.Issue.Success": "您的 **[TvShowTitle]** 問題已成功發送！",
   "Discord.Command.Tv.Issue.Failed": "您的 **[TvShowTitle]** 問題未能提交！",
   "Discord.Command.Issue.Name": "issue",

@@ -497,6 +497,12 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Ombi
                     SeasonNumber = x.seasonNumber,
                     IsAvailable = x.episodes.FirstOrDefault()?.available == true,
                     IsRequested = x.episodes.All(x => x.CanBeRequested()) ? RequestedState.None : x.episodes.All(x => !x.CanBeRequested()) ? RequestedState.Full : RequestedState.Partial,
+                    Episodes = x.episodes?.Select(e => new TvEpisode
+                    {
+                        EpisodeNumber = e.episodeNumber,
+                        IsAvailable = e.available,
+                        IsRequested = e.requested
+                    }).OrderBy(e => e.EpisodeNumber).ToArray() ?? Array.Empty<TvEpisode>()
                 }).ToArray(),
                 IsRequested = jsonTvShow.requested || jsonTvShow.available,
             };

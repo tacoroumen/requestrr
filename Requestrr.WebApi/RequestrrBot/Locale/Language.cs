@@ -51,6 +51,12 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
         [JsonProperty("Discord.Command.Tv.Request.Help.Seasons.Dropdown")]
         public string DiscordCommandTvRequestHelpSeasonsDropdown { get; set; }
 
+        [JsonProperty("Discord.Command.Tv.Issue.Help.Episodes.Dropdown")]
+        public string DiscordCommandTvIssueHelpEpisodesDropdown { get; set; }
+
+        [JsonProperty("Discord.Command.Tv.Issue.Help.Episodes.FullSeason")]
+        public string DiscordCommandTvIssueHelpEpisodesFullSeason { get; set; }
+
         [JsonProperty("Discord.Command.MissingRoles")]
         public string DiscordCommandMissingRoles { get; set; }
 

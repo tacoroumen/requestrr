@@ -1086,19 +1086,87 @@ namespace Requestrr.WebApi.RequestrrBot
         /// <returns></returns>
         private async Task HandleTvIssueRequestAsync(ComponentInteractionCreateEventArgs e)
         {
-            if (e.Id.ToLower().StartsWith("tirs"))
+            if (e.Id.ToLower().StartsWith("tirss"))
             {
                 if (e.Values != null && e.Values.Any())
                 {
-                    string[] values = e.Values.Single().Split("/");
-                    string category = values[0];
-                    string tvShow = values[1];
-                    string issue = values.Length >= 3 ? values[2] : string.Empty;
+                    var values = e.Id.Split("/");
+                    var category = values[2];
+                    var tvShow = values[3];
+                    var issue = values.Length > 4 ? values[4] : string.Empty;
+                    var episodeNumber = values.Length > 5 ? int.Parse(values[5]) : -1;
+                    var seasonNumber = int.Parse(e.Values.Single());
 
-                    //TODO: finish here
-                    await CreateTvShowIssueWorkFlow(e, int.Parse(category)).HandleIssueTVSelectionAsync(int.Parse(tvShow), issue);
+                    if (issue == "0")
+                    {
+                        issue = string.Empty;
+                    }
 
-                    //.HandleIssueMovieSelectionAsync(int.Parse(movie), issue);
+                    if (seasonNumber == 0)
+                    {
+                        episodeNumber = -1;
+                    }
+
+                    await CreateTvShowIssueWorkFlow(e, int.Parse(category))
+                        .HandleIssueTvSelectionAsync(int.Parse(tvShow), issue, seasonNumber, episodeNumber);
+                }
+            }
+            else if (e.Id.ToLower().StartsWith("tirse"))
+            {
+                if (e.Values != null && e.Values.Any())
+                {
+                    var values = e.Id.Split("/");
+                    var category = values[2];
+                    var tvShow = values[3];
+                    var issue = values.Length > 4 ? values[4] : string.Empty;
+                    var seasonNumber = values.Length > 5 ? int.Parse(values[5]) : 0;
+                    var episodeNumber = int.Parse(e.Values.Single());
+
+                    if (issue == "0")
+                    {
+                        issue = string.Empty;
+                    }
+
+                    if (seasonNumber == 0)
+                    {
+                        episodeNumber = -1;
+                    }
+
+                    await CreateTvShowIssueWorkFlow(e, int.Parse(category))
+                        .HandleIssueTvSelectionAsync(int.Parse(tvShow), issue, seasonNumber, episodeNumber);
+                }
+            }
+            else if (e.Id.ToLower().StartsWith("tirs"))
+            {
+                if (e.Values != null && e.Values.Any())
+                {
+                    var selectedValue = e.Values.Single();
+
+                    if (selectedValue.Contains("/"))
+                    {
+                        string[] values = selectedValue.Split("/");
+                        string category = values[0];
+                        string tvShow = values[1];
+                        string issue = values.Length >= 3 ? values[2] : string.Empty;
+
+                        await CreateTvShowIssueWorkFlow(e, int.Parse(category)).HandleIssueTvSelectionAsync(int.Parse(tvShow), issue);
+                    }
+                    else
+                    {
+                        var values = e.Id.Split("/");
+                        var category = values[2];
+                        var tvShow = values[3];
+                        var seasonNumber = values.Length > 4 ? int.Parse(values[4]) : 0;
+                        var episodeNumber = values.Length > 5 ? int.Parse(values[5]) : -1;
+
+                        if (seasonNumber == 0)
+                        {
+                            episodeNumber = -1;
+                        }
+
+                        await CreateTvShowIssueWorkFlow(e, int.Parse(category))
+                            .HandleIssueTvSelectionAsync(int.Parse(tvShow), selectedValue, seasonNumber, episodeNumber);
+                    }
                 }
             }
             else if (e.Id.ToLower().StartsWith("tirb"))
@@ -1108,9 +1176,11 @@ namespace Requestrr.WebApi.RequestrrBot
                 string category = values[2];
                 string tvShow = values[3];
                 string issue = values[4];
+                int seasonNumber = values.Length > 5 ? int.Parse(values[5]) : -1;
+                int episodeNumber = values.Length > 6 ? int.Parse(values[6]) : -1;
 
                 await CreateTvShowIssueWorkFlow(e, int.Parse(category))
-                    .HandleIssueTvShowSendModalAsync(int.Parse(tvShow), issue);
+                    .HandleIssueTvShowSendModalAsync(int.Parse(tvShow), issue, seasonNumber, episodeNumber);
             }
         }
 

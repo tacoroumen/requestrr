@@ -124,6 +124,8 @@
   "Discord.Command.Movie.Issue.Success": "Your issue for **[MovieTitle]** was sent successfully!",
   "Discord.Command.Movie.Issue.Failed": "Your issue for **[MovieTitle]** failed to submit!",
   "Discord.Command.Tv.Issue.Select": "Please select the TV Show and the issue under this message.",
+  "Discord.Command.Tv.Issue.Help.Episodes.Dropdown": "Select an episode here",
+  "Discord.Command.Tv.Issue.Help.Episodes.FullSeason": "Full season",
   "Discord.Command.Tv.Issue.Success": "Your issue for **[TvShowTitle]** was sent successfully!",
   "Discord.Command.Tv.Issue.Failed": "Your issue for **[TvShowTitle]** failed to submit!",
   "Discord.Command.Issue.Name": "issue",
@@ -165,5 +167,3 @@
   "Discord.Notification.Music.Artist.Channel": "Music from **[MusicArtistName]** has started downloading!",
   "Discord.Notification.Music.Artist.DM": "Music from **[MusicArtistName]** has started downloading!"
 }
-
-
