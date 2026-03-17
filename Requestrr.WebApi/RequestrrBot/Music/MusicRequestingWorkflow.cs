@@ -107,6 +107,12 @@ namespace Requestrr.WebApi.RequestrrBot.Music
 
             if (selectedAlbum == null)
             {
+                if (IsSingleSelectionRequired())
+                {
+                    await ShowMusicAlbumPageAsync(musicArtistId, 0, releaseType);
+                    return;
+                }
+
                 await HandleMusicArtistRequestSelectionAsync(musicArtist);
                 return;
             }
@@ -287,6 +293,11 @@ namespace Requestrr.WebApi.RequestrrBot.Music
         private bool IsNoneRestriction()
         {
             return !ParseRestrictions().Any();
+        }
+
+        private bool IsSingleSelectionRequired()
+        {
+            return GetRestrictedReleaseTypes().Any();
         }
 
         private bool HasRestriction(string restriction)
