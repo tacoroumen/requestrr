@@ -56,6 +56,8 @@ namespace Requestrr.WebApi.RequestrrBot
         private HashSet<ulong> _currentGuilds = new HashSet<ulong>();
         private Language _previousLanguage = Language.Current;
         private int _waitTimeout = 0;
+        private DateTime? _socketClosedAt = null;
+        private const int UnrecoverableDisconnectTimeoutMinutes = 10;
 
         public ChatBot(IServiceProvider serviceProvider, ILogger<ChatBot> logger, DiscordSettingsProvider discordSettingsProvider)
         {
@@ -123,6 +125,13 @@ namespace Requestrr.WebApi.RequestrrBot
                         _logger.LogError(ex, "Error while restarting the bot: " + ex.Message);
                     }
 
+                    if (_client != null && _socketClosedAt.HasValue &&
+                        (DateTime.UtcNow - _socketClosedAt.Value).TotalMinutes >= UnrecoverableDisconnectTimeoutMinutes)
+                    {
+                        _logger.LogError($"Discord bot has been disconnected for over {UnrecoverableDisconnectTimeoutMinutes} minutes without reconnecting. Exiting process to allow container restart.");
+                        Environment.Exit(1);
+                    }
+
                     await Task.Delay(5000);
                 }
             });
@@ -136,6 +145,7 @@ namespace Requestrr.WebApi.RequestrrBot
                 _client.Ready -= Connected;
                 _client.ComponentInteractionCreated -= DiscordComponentInteractionCreatedHandler;
                 _client.ModalSubmitted -= DiscordModalSubmittedHandler;
+                _client.SocketClosed -= OnSocketClosed;
                 _client.Dispose();
             }
 
@@ -183,11 +193,13 @@ namespace Requestrr.WebApi.RequestrrBot
                     _client.Ready += Connected;
                     _client.ComponentInteractionCreated += DiscordComponentInteractionCreatedHandler;
                     _client.ModalSubmitted += DiscordModalSubmittedHandler;
+                    _client.SocketClosed += OnSocketClosed;
 
                     _currentGuilds = new HashSet<ulong>();
 
                     try
                     {
+                        _socketClosedAt = null;
                         await _client.ConnectAsync();
                     }
                     catch (Exception ex) when (ex.InnerException is DSharpPlus.Exceptions.UnauthorizedException)
@@ -262,8 +274,16 @@ namespace Requestrr.WebApi.RequestrrBot
             }
         }
 
+        private Task OnSocketClosed(DiscordClient client, SocketCloseEventArgs args)
+        {
+            _socketClosedAt = DateTime.UtcNow;
+            _logger.LogWarning($"Discord socket closed (code: {args.CloseCode}): {args.CloseMessage}");
+            return Task.CompletedTask;
+        }
+
         private async Task Connected(DiscordClient client, ReadyEventArgs args)
         {
+            _socketClosedAt = null;
             await ApplyBotConfigurationAsync(_currentSettings);
         }
 
