@@ -94,7 +94,7 @@ namespace Requestrr.WebApi.RequestrrBot.Music
 
                 if (!string.IsNullOrWhiteSpace(releaseType))
                 {
-                    await RequestAllAlbumsByReleaseTypeAsync(musicArtist, releaseType);
+                    await _userInterface.DisplayAllAlbumsRequestConfirmAsync(new MusicRequest(_user, _categoryId), musicArtist, releaseType);
                     return;
                 }
 
@@ -207,6 +207,18 @@ namespace Requestrr.WebApi.RequestrrBot.Music
             {
                 await _userInterface.DisplayMusicAlbumRequestSuccessAsync(musicArtist, selectedAlbum);
             }
+        }
+
+        public async Task RequestAllAlbumsByTypeAsync(string artistId, string releaseType)
+        {
+            MusicArtist musicArtist = await _musicSearcher.SearchMusicForArtistIdAsync(new MusicRequest(_user, _categoryId), artistId);
+            if (musicArtist == null)
+            {
+                await _userInterface.WarnNoMusicArtistFoundAsync(artistId);
+                return;
+            }
+
+            await RequestAllAlbumsByReleaseTypeAsync(musicArtist, releaseType);
         }
 
         public async Task ShowMusicAlbumPageAsync(string artistId, int page, string releaseType = null)

@@ -108,7 +108,28 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                     currentPage >= totalPages - 1
                 );
 
-                albumBuilder.AddComponents(prevButton, nextButton);
+                if (CanRequestAllAlbumsForReleaseType(effectiveReleaseType))
+                {
+                    var requestAllButton = new DiscordButtonComponent(
+                        ButtonStyle.Primary,
+                        $"MuRLRA/{_interactionContext.User.Id}/{request.CategoryId}/{CompactGuid(musicArtist.ArtistId)}/{effectiveReleaseType}",
+                        allLabel
+                    );
+                    albumBuilder.AddComponents(prevButton, nextButton, requestAllButton);
+                }
+                else
+                {
+                    albumBuilder.AddComponents(prevButton, nextButton);
+                }
+            }
+            else if (CanRequestAllAlbumsForReleaseType(effectiveReleaseType))
+            {
+                var requestAllButton = new DiscordButtonComponent(
+                    ButtonStyle.Primary,
+                    $"MuRLRA/{_interactionContext.User.Id}/{request.CategoryId}/{CompactGuid(musicArtist.ArtistId)}/{effectiveReleaseType}",
+                    allLabel
+                );
+                albumBuilder.AddComponents(requestAllButton);
             }
 
             await _interactionContext.EditOriginalResponseAsync(albumBuilder);
@@ -121,6 +142,18 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             DiscordButtonComponent requestButton = new DiscordButtonComponent(ButtonStyle.Primary, $"MuRCA/{_interactionContext.User.Id}/{request.CategoryId}/{musicArtist.ArtistId}", Language.Current.DiscordCommandRequestButton);
 
             var builder = (await AddPreviousDropdownsAsync(musicArtist, new DiscordWebhookBuilder().AddEmbed(GenerateMusicArtistDetails(musicArtist)))).AddComponents(requestButton).WithContent(message);
+            await _interactionContext.EditOriginalResponseAsync(builder);
+        }
+
+        public async Task DisplayAllAlbumsRequestConfirmAsync(MusicRequest request, MusicArtist artist, string releaseType)
+        {
+            string message = Language.Current.DiscordCommandMusicArtistRequestConfirm;
+            DiscordButtonComponent requestButton = new DiscordButtonComponent(
+                ButtonStyle.Primary,
+                $"MuRLRA/{_interactionContext.User.Id}/{request.CategoryId}/{CompactGuid(artist.ArtistId)}/{releaseType}",
+                Language.Current.DiscordCommandRequestButton);
+
+            var builder = (await AddPreviousDropdownsAsync(artist, new DiscordWebhookBuilder().AddEmbed(GenerateMusicArtistDetails(artist)), true, "all", true, releaseType)).AddComponents(requestButton).WithContent(message);
             await _interactionContext.EditOriginalResponseAsync(builder);
         }
 
@@ -299,7 +332,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
             bool includeReleaseTypeSelector = true,
             string selectedReleaseType = null)
         {
-            var components = (await _interactionContext.GetOriginalResponseAsync()).FilterComponents<DiscordSelectComponent>().ToArray();
+            var previousMessage = await _interactionContext.GetOriginalResponseAsync();
+            var components = previousMessage.FilterComponents<DiscordSelectComponent>().ToArray();
             DiscordSelectComponent previousMusicSelector = components.FirstOrDefault(x => x.CustomId.StartsWith("MuRSA", true, null));
             if (previousMusicSelector != null)
             {
@@ -366,6 +400,12 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Discord
                     builder.AddComponents(albumSelector);
                 }
             }
+
+            var paginationButtons = previousMessage.FilterComponents<DiscordButtonComponent>()
+                .Where(x => x.CustomId.StartsWith("MuRLP", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            if (paginationButtons.Length > 0)
+                builder.AddComponents(paginationButtons);
 
             return builder;
         }

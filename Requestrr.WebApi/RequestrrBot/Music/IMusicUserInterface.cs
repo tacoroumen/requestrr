@@ -10,6 +10,7 @@ namespace Requestrr.WebApi.RequestrrBot.Music
         Task WarnNoMusicArtistFoundAsync(string musicName);
 
         Task DisplayMusicArtistDetailsAsync(MusicRequest request, MusicArtist music);
+        Task DisplayAllAlbumsRequestConfirmAsync(MusicRequest request, MusicArtist artist, string releaseType);
         Task DisplayMusicAlbumDetailsAsync(MusicRequest request, MusicArtist artist, MusicAlbum album);
         Task DisplayArtistRequestDeniedAsync(MusicArtist music);
         Task DisplayArtistRequestSuccessAsync(MusicArtist music);

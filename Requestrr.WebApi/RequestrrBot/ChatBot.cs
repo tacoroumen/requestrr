@@ -685,6 +685,16 @@ namespace Requestrr.WebApi.RequestrrBot
                 await CreateMusicRequestWorkFlow(e, categoryId)
                     .RequestMusicAlbumAsync(artistId, albumId);
             }
+            else if (e.Id.ToLower().StartsWith("murlra"))
+            {
+                var splitValues = e.Id.Split("/").Skip(2).ToArray();
+                var categoryId = int.Parse(splitValues[0]);
+                var artistId = ExpandGuid(splitValues[1]);
+                var releaseType = splitValues[2];
+
+                await CreateMusicRequestWorkFlow(e, categoryId)
+                    .RequestAllAlbumsByTypeAsync(artistId, releaseType);
+            }
         }
 
 

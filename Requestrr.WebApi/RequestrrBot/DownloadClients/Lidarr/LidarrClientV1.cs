@@ -4,6 +4,7 @@ using Newtonsoft.Json.Linq;
 using Requestrr.WebApi.Extensions;
 using Requestrr.WebApi.RequestrrBot.Music;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -23,6 +24,13 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
         private LidarrSettings _lidarrSettings => _lidarrSettingProvider.Provider();
 
         private string BaseURL => GetBaseURL(_lidarrSettings);
+
+        private static readonly SemaphoreSlim _musicBrainzSemaphore = new SemaphoreSlim(1, 1);
+        private static DateTime _lastMusicBrainzRequestUtc = DateTime.MinValue;
+
+        private static readonly ConcurrentDictionary<string, (IReadOnlyList<MusicAlbum> albums, DateTime expiry)> _musicBrainzAlbumCache
+            = new ConcurrentDictionary<string, (IReadOnlyList<MusicAlbum>, DateTime)>();
+        private static readonly TimeSpan _musicBrainzCacheTtl = TimeSpan.FromMinutes(10);
 
 
         public LidarrClientV1(IHttpClientFactory httpClientFactory, ILogger<LidarrClient> logger, LidarrSettingsProvider lidarrSettingsProvider)
@@ -425,30 +433,74 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
             if (artist == null || string.IsNullOrWhiteSpace(artist.ArtistId))
                 return Array.Empty<MusicAlbum>();
 
-            const int pageSize = 100;
-            var albums = new List<MusicAlbum>();
-            int offset = 0;
-            int? totalCount = null;
+            string cacheKey = $"{artist.ArtistId}_{categoryId}";
+
+            if (_musicBrainzAlbumCache.TryGetValue(cacheKey, out var cached) && cached.expiry > DateTime.UtcNow)
+                return cached.albums;
+
             ReleaseFilters filters = GetReleaseFilters(categoryId);
 
             try
             {
-                while (totalCount == null || offset < totalCount.Value)
+                string url = $"https://musicbrainz.org/ws/2/release-group?artist={artist.ArtistId}&fmt=json&inc=artist-credits&limit=100&offset=0";
+                MusicBrainzReleaseGroupResponse firstPage = await FetchMusicBrainzReleaseGroupsAsync(url);
+
+                if (firstPage?.ReleaseGroups == null)
+                    return Array.Empty<MusicAlbum>();
+
+                IReadOnlyList<MusicAlbum> albums = firstPage.ReleaseGroups
+                    .Where(x => IsRequestedReleaseType(x, artist, filters))
+                    .Select(x => ConvertToAlbum(x, artist))
+                    .OrderByDescending(x => x.ReleaseDate ?? DateTime.MinValue)
+                    .ToArray();
+
+                DateTime expiry = DateTime.UtcNow.Add(_musicBrainzCacheTtl);
+                _musicBrainzAlbumCache[cacheKey] = (albums, expiry);
+
+                if (firstPage.TotalCount > 100)
+                    _ = Task.Run(() => FetchRemainingMusicBrainzPagesAsync(artist, filters, cacheKey, 100, firstPage.TotalCount, expiry));
+
+                return albums;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"An error occurred while searching MusicBrainz albums for artist \"{artist.ArtistId}\": {ex.Message}");
+            }
+
+            return Array.Empty<MusicAlbum>();
+        }
+
+        private async Task FetchRemainingMusicBrainzPagesAsync(MusicArtist artist, ReleaseFilters filters, string cacheKey, int startOffset, int totalMbCount, DateTime expectedExpiry)
+        {
+            const int pageSize = 100;
+            int offset = startOffset;
+
+            while (offset < totalMbCount)
+            {
+                if (!_musicBrainzAlbumCache.TryGetValue(cacheKey, out var current) || current.expiry != expectedExpiry)
+                    break;
+
+                try
                 {
                     string url = $"https://musicbrainz.org/ws/2/release-group?artist={artist.ArtistId}&fmt=json&inc=artist-credits&limit={pageSize}&offset={offset}";
                     MusicBrainzReleaseGroupResponse response = await FetchMusicBrainzReleaseGroupsAsync(url);
 
-                    if (response == null || response.ReleaseGroups == null || response.ReleaseGroups.Count == 0)
+                    if (response?.ReleaseGroups == null || response.ReleaseGroups.Count == 0)
                         break;
 
-                    totalCount ??= response.TotalCount;
+                    IReadOnlyList<MusicAlbum> newAlbums = response.ReleaseGroups
+                        .Where(x => IsRequestedReleaseType(x, artist, filters))
+                        .Select(x => ConvertToAlbum(x, artist))
+                        .ToArray();
 
-                    foreach (var releaseGroup in response.ReleaseGroups)
+                    if (_musicBrainzAlbumCache.TryGetValue(cacheKey, out current) && current.expiry == expectedExpiry)
                     {
-                        if (!IsRequestedReleaseType(releaseGroup, artist, filters))
-                            continue;
+                        IReadOnlyList<MusicAlbum> updatedAlbums = current.albums
+                            .Concat(newAlbums)
+                            .OrderByDescending(x => x.ReleaseDate ?? DateTime.MinValue)
+                            .ToArray();
 
-                        albums.Add(ConvertToAlbum(releaseGroup, artist));
+                        _musicBrainzAlbumCache[cacheKey] = (updatedAlbums, expectedExpiry);
                     }
 
                     if (response.ReleaseGroups.Count < pageSize)
@@ -456,33 +508,61 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr
 
                     offset += pageSize;
                 }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"Background MusicBrainz fetch failed at offset {offset} for artist \"{artist.ArtistId}\": {ex.Message}");
+                    break;
+                }
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"An error occurred while searching MusicBrainz albums for artist \"{artist.ArtistId}\": {ex.Message}");
-            }
-
-            return albums
-                .OrderByDescending(x => x.ReleaseDate ?? DateTime.MinValue)
-                .ToArray();
         }
 
         private async Task<MusicBrainzReleaseGroupResponse> FetchMusicBrainzReleaseGroupsAsync(string url)
         {
-            HttpClient client = _httpClientFactory.CreateClient();
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("Accept", "application/json");
-            request.Headers.UserAgent.ParseAdd("Requestrr/2.1.9 (github.com/darkalfx/requestrr)");
+            const int maxAttempts = 3;
 
-            using var response = await client.SendAsync(request);
-            if (!response.IsSuccessStatusCode)
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                _logger.LogWarning($"MusicBrainz lookup failed with status {(int)response.StatusCode} ({response.ReasonPhrase}).");
-                return null;
+                await _musicBrainzSemaphore.WaitAsync();
+                try
+                {
+                    TimeSpan elapsed = DateTime.UtcNow - _lastMusicBrainzRequestUtc;
+                    if (elapsed < TimeSpan.FromSeconds(1))
+                        await Task.Delay(TimeSpan.FromSeconds(1) - elapsed);
+
+                    _lastMusicBrainzRequestUtc = DateTime.UtcNow;
+
+                    HttpClient client = _httpClientFactory.CreateClient();
+                    using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                    request.Headers.Add("Accept", "application/json");
+                    request.Headers.UserAgent.ParseAdd("Requestrr/2.1.9 (github.com/darkalfx/requestrr)");
+
+                    using var response = await client.SendAsync(request);
+
+                    if (response.StatusCode == HttpStatusCode.ServiceUnavailable)
+                    {
+                        int backoffSeconds = (int)Math.Pow(2, attempt);
+                        _logger.LogWarning($"MusicBrainz rate limited (attempt {attempt}/{maxAttempts}), backing off {backoffSeconds}s before retry.");
+                        await Task.Delay(TimeSpan.FromSeconds(backoffSeconds));
+                        continue;
+                    }
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        _logger.LogWarning($"MusicBrainz lookup failed with status {(int)response.StatusCode} ({response.ReasonPhrase}).");
+                        return null;
+                    }
+
+                    string jsonResponse = await response.Content.ReadAsStringAsync();
+                    return JsonConvert.DeserializeObject<MusicBrainzReleaseGroupResponse>(jsonResponse);
+                }
+                finally
+                {
+                    _musicBrainzSemaphore.Release();
+                }
             }
 
-            string jsonResponse = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject<MusicBrainzReleaseGroupResponse>(jsonResponse);
+            _logger.LogWarning("MusicBrainz lookup failed after all retry attempts.");
+            return null;
         }
 
         private async Task<JSONMusicArtist> FindExistingArtistByMusicDbIdAsync(string artistId)
