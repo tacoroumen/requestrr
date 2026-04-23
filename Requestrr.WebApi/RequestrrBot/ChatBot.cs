@@ -232,26 +232,31 @@ namespace Requestrr.WebApi.RequestrrBot
                                 try { _slashCommands.RegisterCommands(slashCommandType); }
                                 catch (System.Exception ex) { _logger.LogError(ex, "Error while registering global slash commands: " + ex.Message); }
 
+                                await Task.Delay(TimeSpan.FromSeconds(2));
+                                
                                 foreach (var guildId in _client.Guilds.Keys)
                                 {
                                     try { _slashCommands.RegisterCommands<EmptySlashCommands>(guildId); }
                                     catch (System.Exception ex) { _logger.LogError(ex, $"Error while emptying guild-specific slash commands for guid {guildId}: " + ex.Message); }
+                                    await Task.Delay(TimeSpan.FromSeconds(1));
                                 }
                             }
                             else
                             {
                                 try { _slashCommands.RegisterCommands<EmptySlashCommands>(); }
                                 catch (System.Exception ex) { _logger.LogError(ex, "Error while emptying global slash commands: " + ex.Message); }
+                                await Task.Delay(TimeSpan.FromSeconds(2));
 
                                 foreach (var guildId in _client.Guilds.Keys)
                                 {
                                     try { _slashCommands.RegisterCommands(slashCommandType, guildId); }
                                     catch (System.Exception ex) { _logger.LogError(ex, $"Error while registering guild-specific slash commands for guid {guildId}: " + ex.Message); }
+                                    await Task.Delay(TimeSpan.FromSeconds(1));
                                 }
                             }
 
                             await _slashCommands.RefreshCommands();
-                            await Task.Delay(TimeSpan.FromMinutes(1));
+                            await Task.Delay(TimeSpan.FromMinutes(10));
                         }
                         catch (Exception ex)
                         {
