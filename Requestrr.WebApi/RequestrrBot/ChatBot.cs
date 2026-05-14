@@ -57,6 +57,8 @@ namespace Requestrr.WebApi.RequestrrBot
         private Language _previousLanguage = Language.Current;
         private int _waitTimeout = 0;
         private DateTime? _socketClosedAt = null;
+        private DateTime? _heartbeatSentAt = null;
+        private const int UnrecoverableHeartbeatInterval = 4;
         private const int UnrecoverableDisconnectTimeoutMinutes = 10;
 
         public ChatBot(IServiceProvider serviceProvider, ILogger<ChatBot> logger, DiscordSettingsProvider discordSettingsProvider)
@@ -116,7 +118,7 @@ namespace Requestrr.WebApi.RequestrrBot
                             SlashCommandBuilder.CleanUp();
 
                             //Delay till next restart
-                            if(_waitTimeout <= 0)
+                            if (_waitTimeout <= 0)
                                 _waitTimeout = 5;
                         }
                     }
@@ -129,6 +131,11 @@ namespace Requestrr.WebApi.RequestrrBot
                         (DateTime.UtcNow - _socketClosedAt.Value).TotalMinutes >= UnrecoverableDisconnectTimeoutMinutes)
                     {
                         _logger.LogError($"Discord bot has been disconnected for over {UnrecoverableDisconnectTimeoutMinutes} minutes without reconnecting. Exiting process to allow container restart.");
+
+                    if (_client != null && (DateTime.Now - _heartbeatSentAt.Value).TotalMinutes >=
+                        UnrecoverableHeartbeatInterval)
+                    {
+                        _logger.LogError("Discord bot has been disconnected. Restarting!");
                         Environment.Exit(1);
                     }
 
@@ -145,7 +152,9 @@ namespace Requestrr.WebApi.RequestrrBot
                 _client.Ready -= Connected;
                 _client.ComponentInteractionCreated -= DiscordComponentInteractionCreatedHandler;
                 _client.ModalSubmitted -= DiscordModalSubmittedHandler;
+                _client.SocketOpened -= OnSocketOpen;
                 _client.SocketClosed -= OnSocketClosed;
+                _client.Heartbeated -= Heartbeat;
                 _client.Dispose();
             }
 
@@ -193,18 +202,21 @@ namespace Requestrr.WebApi.RequestrrBot
                     _client.Ready += Connected;
                     _client.ComponentInteractionCreated += DiscordComponentInteractionCreatedHandler;
                     _client.ModalSubmitted += DiscordModalSubmittedHandler;
+                    _client.SocketOpened += OnSocketOpen;
                     _client.SocketClosed += OnSocketClosed;
+                    _client.Heartbeated += Heartbeat;
 
                     _currentGuilds = new HashSet<ulong>();
 
                     try
                     {
+                        _heartbeatSentAt = DateTime.Now;
                         _socketClosedAt = null;
                         await _client.ConnectAsync();
                     }
                     catch (Exception ex) when (ex.InnerException is DSharpPlus.Exceptions.UnauthorizedException)
                     {
-                        _logger.LogError("Discord token is incorrect, please cehck your token settings.");
+                        _logger.LogError("Discord token is incorrect, please check your token settings.");
                         _client = null;
                     }
                     catch (Exception ex)
@@ -256,7 +268,7 @@ namespace Requestrr.WebApi.RequestrrBot
                             }
 
                             await _slashCommands.RefreshCommands();
-                            await Task.Delay(TimeSpan.FromMinutes(10));
+                            await Task.Delay(TimeSpan.FromMinutes(1));
                         }
                         catch (Exception ex)
                         {
@@ -277,6 +289,20 @@ namespace Requestrr.WebApi.RequestrrBot
                     _logger.LogWarning("No Bot Token for Discord has been configured.");
                 }
             }
+        }
+
+        private Task Heartbeat(DiscordClient client, HeartbeatEventArgs args)
+        {
+            _heartbeatSentAt = DateTime.Now;
+            _logger.LogWarning($"Discord socket heartbeat ({DateTime.Now})");
+            return Task.CompletedTask;
+        }
+
+        private Task OnSocketOpen(DiscordClient client, SocketEventArgs args)
+        {
+            _socketClosedAt = null;
+            _logger.LogWarning($"Discord socket reconnected ({DateTime.Now})");
+            return Task.CompletedTask;
         }
 
         private Task OnSocketClosed(DiscordClient client, SocketCloseEventArgs args)
