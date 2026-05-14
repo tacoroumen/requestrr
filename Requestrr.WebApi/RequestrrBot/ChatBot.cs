@@ -131,11 +131,13 @@ namespace Requestrr.WebApi.RequestrrBot
                         (DateTime.UtcNow - _socketClosedAt.Value).TotalMinutes >= UnrecoverableDisconnectTimeoutMinutes)
                     {
                         _logger.LogError($"Discord bot has been disconnected for over {UnrecoverableDisconnectTimeoutMinutes} minutes without reconnecting. Exiting process to allow container restart.");
+                        Environment.Exit(1);
+                    }
 
                     if (_client != null && (DateTime.Now - _heartbeatSentAt.Value).TotalMinutes >=
                         UnrecoverableHeartbeatInterval)
                     {
-                        _logger.LogError("Discord bot has been disconnected. Restarting!");
+                        _logger.LogError("Discord bot heartbeat has been stopped. Restarting!");
                         Environment.Exit(1);
                     }
 
@@ -294,7 +296,7 @@ namespace Requestrr.WebApi.RequestrrBot
         private Task Heartbeat(DiscordClient client, HeartbeatEventArgs args)
         {
             _heartbeatSentAt = DateTime.Now;
-            _logger.LogWarning($"Discord socket heartbeat ({DateTime.Now})");
+            //_logger.LogWarning($"Discord socket heartbeat ({DateTime.Now})");
             return Task.CompletedTask;
         }
 
