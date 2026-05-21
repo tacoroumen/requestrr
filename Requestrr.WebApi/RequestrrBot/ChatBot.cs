@@ -296,21 +296,20 @@ namespace Requestrr.WebApi.RequestrrBot
         private Task Heartbeat(DiscordClient client, HeartbeatEventArgs args)
         {
             _heartbeatSentAt = DateTime.Now;
-            //_logger.LogWarning($"Discord socket heartbeat ({DateTime.Now})");
             return Task.CompletedTask;
         }
 
         private Task OnSocketOpen(DiscordClient client, SocketEventArgs args)
         {
             _socketClosedAt = null;
-            _logger.LogWarning($"Discord socket reconnected ({DateTime.Now})");
+            _logger.LogDebug($"Discord socket reconnected ({DateTime.Now})");
             return Task.CompletedTask;
         }
 
         private Task OnSocketClosed(DiscordClient client, SocketCloseEventArgs args)
         {
             _socketClosedAt = DateTime.UtcNow;
-            _logger.LogWarning($"Discord socket closed (code: {args.CloseCode}): {args.CloseMessage}");
+            _logger.LogDebug($"Discord socket closed (code: {args.CloseCode}): {args.CloseMessage}");
             return Task.CompletedTask;
         }
 
