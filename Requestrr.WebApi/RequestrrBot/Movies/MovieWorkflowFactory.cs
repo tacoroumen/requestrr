@@ -99,6 +99,44 @@ namespace Requestrr.WebApi.RequestrrBot.Movies
             return new MovieNotificationEngine(GetMovieClient<IMovieSearcher>(settings), movieNotifier, logger, _notificationsRepository);
         }
 
+        /// <summary>
+        /// Creates a requesting workflow for any chat client. The caller supplies the user and the user interface.
+        /// </summary>
+        public MovieRequestingWorkflow CreateRequestingWorkflow(MovieUserRequester user, int categoryId, IMovieUserInterface userInterface, string notificationMode, bool automaticallyNotifyRequesters)
+        {
+            var settings = _settingsProvider.Provide();
+
+            return new MovieRequestingWorkflow(user,
+                                                categoryId,
+                                                GetMovieClient<IMovieSearcher>(settings),
+                                                GetMovieClient<IMovieRequester>(settings),
+                                                userInterface,
+                                                CreateNotificationWorkflow(userInterface, notificationMode, automaticallyNotifyRequesters));
+        }
+
+        public IMovieNotificationWorkflow CreateNotificationWorkflow(IMovieUserInterface userInterface, string notificationMode, bool automaticallyNotifyRequesters)
+        {
+            var settings = _settingsProvider.Provide();
+
+            if (notificationMode == NotificationMode.Disabled)
+            {
+                return new DisabledMovieNotificationWorkflow(userInterface);
+            }
+
+            return new MovieNotificationWorkflow(_notificationsRepository, userInterface, GetMovieClient<IMovieSearcher>(settings), automaticallyNotifyRequesters);
+        }
+
+        public MovieNotificationEngine CreateMovieNotificationEngine(IMovieNotifier movieNotifier, ILogger logger)
+        {
+            var settings = _settingsProvider.Provide();
+            return new MovieNotificationEngine(GetMovieClient<IMovieSearcher>(settings), movieNotifier, logger, _notificationsRepository);
+        }
+
+        public IMovieSearcher GetMovieSearcher()
+        {
+            return GetMovieClient<IMovieSearcher>(_settingsProvider.Provide());
+        }
+
         private IMovieNotificationWorkflow CreateMovieNotificationWorkflow(DiscordInteraction interaction, DiscordSettings settings)
         {
             var userInterface = new DiscordMovieUserInterface(interaction, GetMovieClient<IMovieSearcher>(settings), _settingsProvider, _approvalRepository);

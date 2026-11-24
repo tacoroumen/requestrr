@@ -111,6 +111,40 @@ namespace Requestrr.WebApi.RequestrrBot.TvShows
             return new TvShowNotificationEngine(GetTvShowClient<ITvShowSearcher>(settings), tvShowNotifier, logger, _notificationsRepository);
         }
 
+        /// <summary>
+        /// Creates a requesting workflow for any chat client. The caller supplies the user and the user interface.
+        /// </summary>
+        public TvShowRequestingWorkflow CreateRequestingWorkflow(TvShowUserRequester user, int categoryId, ITvShowUserInterface userInterface, string notificationMode, bool automaticallyNotifyRequesters)
+        {
+            var settings = _settingsProvider.Provide();
+
+            return new TvShowRequestingWorkflow(user,
+                                                categoryId,
+                                                GetTvShowClient<ITvShowSearcher>(settings),
+                                                GetTvShowClient<ITvShowRequester>(settings),
+                                                userInterface,
+                                                CreateNotificationWorkflow(userInterface, notificationMode, automaticallyNotifyRequesters),
+                                                _tvShowsSettingsProvider.Provide());
+        }
+
+        public ITvShowNotificationWorkflow CreateNotificationWorkflow(ITvShowUserInterface userInterface, string notificationMode, bool automaticallyNotifyRequesters)
+        {
+            var settings = _settingsProvider.Provide();
+
+            if (notificationMode == NotificationMode.Disabled)
+            {
+                return new DisabledTvShowNotificationWorkflow(userInterface);
+            }
+
+            return new TvShowNotificationWorkflow(_notificationsRepository, userInterface, GetTvShowClient<ITvShowSearcher>(settings), automaticallyNotifyRequesters);
+        }
+
+        public TvShowNotificationEngine CreateTvShowNotificationEngine(ITvShowNotifier tvShowNotifier, ILogger logger)
+        {
+            var settings = _settingsProvider.Provide();
+            return new TvShowNotificationEngine(GetTvShowClient<ITvShowSearcher>(settings), tvShowNotifier, logger, _notificationsRepository);
+        }
+
         private ITvShowNotificationWorkflow CreateMovieNotificationWorkflow(DiscordInteraction interaction, DiscordSettings settings, ITvShowSearcher tvShowSearcher)
         {
             var userInterface = new DiscordTvShowUserInterface(interaction, _settingsProvider, _approvalRepository);

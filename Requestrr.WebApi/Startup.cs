@@ -106,6 +106,7 @@ namespace Requestrr.WebApi
             services.AddSingleton<RadarrSettingsProvider>();
             services.AddSingleton<SonarrSettingsProvider>();
             services.AddSingleton<LidarrSettingsProvider>();
+            services.AddSingleton<RequestrrBot.RequestrrServices>();
             services.AddSingleton<RequestrrBot.ChatBot>();
         }
 

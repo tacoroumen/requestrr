@@ -47,10 +47,7 @@ namespace Requestrr.WebApi.RequestrrBot
         private MovieWorkflowFactory _movieWorkflowFactory;
         private TvShowWorkflowFactory _tvShowWorkflowFactory;
         private MusicWorkflowFactory _musicWorkflowFactory;
-        private MovieNotificationsRepository _movieNotificationRepository = new MovieNotificationsRepository();
-        private TvShowNotificationsRepository _tvShowNotificationRepository = new TvShowNotificationsRepository();
-        private MusicNotificationsRepository _musicNotificationRepository = new MusicNotificationsRepository();
-        private RequestApprovalRepository _requestApprovalRepository = new RequestApprovalRepository();
+        private RequestApprovalRepository _requestApprovalRepository;
         private OverseerrClient _overseerrClient;
         private OmbiClient _ombiDownloadClient;
         private RadarrClient _radarrDownloadClient;
@@ -69,19 +66,20 @@ namespace Requestrr.WebApi.RequestrrBot
         private const int UnrecoverableHeartbeatInterval = 4;
         private const int UnrecoverableDisconnectTimeoutMinutes = 10;
 
-        public ChatBot(IServiceProvider serviceProvider, ILogger<ChatBot> logger, DiscordSettingsProvider discordSettingsProvider)
+        public ChatBot(IServiceProvider serviceProvider, ILogger<ChatBot> logger, DiscordSettingsProvider discordSettingsProvider, RequestrrServices requestrrServices)
         {
             _logger = logger;
             _serviceProvider = serviceProvider;
             _discordSettingsProvider = discordSettingsProvider;
-            _overseerrClient = new OverseerrClient(serviceProvider.Get<IHttpClientFactory>(), serviceProvider.Get<ILogger<OverseerrClient>>(), serviceProvider.Get<OverseerrSettingsProvider>());
-            _ombiDownloadClient = new OmbiClient(serviceProvider.Get<IHttpClientFactory>(), serviceProvider.Get<ILogger<OmbiClient>>(), serviceProvider.Get<OmbiSettingsProvider>());
-            _radarrDownloadClient = new RadarrClient(serviceProvider.Get<IHttpClientFactory>(), serviceProvider.Get<ILogger<RadarrClient>>(), serviceProvider.Get<RadarrSettingsProvider>());
-            _sonarrDownloadClient = new SonarrClient(serviceProvider.Get<IHttpClientFactory>(), serviceProvider.Get<ILogger<SonarrClient>>(), serviceProvider.Get<SonarrSettingsProvider>());
-            _lidarrDownloadClient = new LidarrClient(serviceProvider.Get<IHttpClientFactory>(), serviceProvider.Get<ILogger<LidarrClient>>(), serviceProvider.Get<LidarrSettingsProvider>());
-            _movieWorkflowFactory = new MovieWorkflowFactory(_discordSettingsProvider, _movieNotificationRepository, _requestApprovalRepository, _overseerrClient, _ombiDownloadClient, _radarrDownloadClient);
-            _tvShowWorkflowFactory = new TvShowWorkflowFactory(serviceProvider.Get<TvShowsSettingsProvider>(), _discordSettingsProvider, _tvShowNotificationRepository, _requestApprovalRepository, _overseerrClient, _ombiDownloadClient, _sonarrDownloadClient);
-            _musicWorkflowFactory = new MusicWorkflowFactory(_discordSettingsProvider, _musicNotificationRepository, _lidarrDownloadClient);
+            _requestApprovalRepository = requestrrServices.RequestApprovalRepository;
+            _overseerrClient = requestrrServices.OverseerrClient;
+            _ombiDownloadClient = requestrrServices.OmbiClient;
+            _radarrDownloadClient = requestrrServices.RadarrClient;
+            _sonarrDownloadClient = requestrrServices.SonarrClient;
+            _lidarrDownloadClient = requestrrServices.LidarrClient;
+            _movieWorkflowFactory = requestrrServices.MovieWorkflowFactory;
+            _tvShowWorkflowFactory = requestrrServices.TvShowWorkflowFactory;
+            _musicWorkflowFactory = requestrrServices.MusicWorkflowFactory;
         }
 
         public async void Start()
@@ -94,6 +92,18 @@ namespace Requestrr.WebApi.RequestrrBot
                         _waitTimeout--;
                     try
                     {
+                        if (BotClientSelection.IsMatrix())
+                        {
+                            if (_client != null || _slashCommands != null)
+                            {
+                                _logger.LogWarning("Matrix is the selected chat client: stopping the Discord bot.");
+                                await StopDiscordAsync();
+                            }
+
+                            await Task.Delay(5000);
+                            continue;
+                        }
+
                         bool guildsChanged = false;
                         var newSettings = _discordSettingsProvider.Provide();
 
@@ -152,6 +162,31 @@ namespace Requestrr.WebApi.RequestrrBot
                     await Task.Delay(5000);
                 }
             });
+        }
+
+        private async Task StopDiscordAsync()
+        {
+            try
+            {
+                if (_movieNotificationEngine != null) await _movieNotificationEngine.StopAsync();
+                if (_tvShowNotificationEngine != null) await _tvShowNotificationEngine.StopAsync();
+                if (_musicNotificationEngine != null) await _musicNotificationEngine.StopAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error while stopping Discord notification engines: " + ex.Message);
+            }
+
+            _movieNotificationEngine = null;
+            _tvShowNotificationEngine = null;
+            _musicNotificationEngine = null;
+
+            await DisposeClient();
+            _client = null;
+            _slashCommands = null;
+            _socketClosedAt = null;
+            _heartbeatSentAt = null;
+            _currentSettings = new DiscordSettings();
         }
 
         private async Task DisposeClient()
