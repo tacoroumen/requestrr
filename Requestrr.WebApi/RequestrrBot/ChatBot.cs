@@ -145,23 +145,63 @@ namespace Requestrr.WebApi.RequestrrBot
                         _logger.LogError(ex, "Error while restarting the bot: " + ex.Message);
                     }
 
+                    // Restart only the Discord client when it is stuck, so other chat clients in this process (Matrix) keep running.
                     if (_client != null && _socketClosedAt.HasValue &&
                         (DateTime.UtcNow - _socketClosedAt.Value).TotalMinutes >= UnrecoverableDisconnectTimeoutMinutes)
                     {
-                        _logger.LogError($"Discord bot has been disconnected for over {UnrecoverableDisconnectTimeoutMinutes} minutes without reconnecting. Exiting process to allow container restart.");
-                        Environment.Exit(1);
+                        await RestartDiscordClientAsync($"Discord bot has been disconnected for over {UnrecoverableDisconnectTimeoutMinutes} minutes without reconnecting. Restarting the Discord client.");
                     }
-
-                    if (_client != null && (DateTime.Now - _heartbeatSentAt.Value).TotalMinutes >=
+                    else if (_client != null && _heartbeatSentAt.HasValue && (DateTime.Now - _heartbeatSentAt.Value).TotalMinutes >=
                         UnrecoverableHeartbeatInterval)
                     {
-                        _logger.LogError("Discord bot heartbeat has been stopped. Restarting!");
-                        Environment.Exit(1);
+                        await RestartDiscordClientAsync("Discord bot heartbeat has been stopped. Restarting the Discord client.");
                     }
 
                     await Task.Delay(5000);
                 }
             });
+        }
+
+        private static readonly TimeSpan DiscordShutdownTimeout = TimeSpan.FromSeconds(30);
+        private static readonly TimeSpan DiscordConnectTimeout = TimeSpan.FromMinutes(2);
+
+        /// <summary>
+        /// Replaces a stuck Discord client without exiting the process. The supervisor loop reconnects on its next pass.
+        /// </summary>
+        private async Task RestartDiscordClientAsync(string reason)
+        {
+            _logger.LogError(reason);
+
+            var stopTask = StopDiscordAsync();
+
+            if (await Task.WhenAny(stopTask, Task.Delay(DiscordShutdownTimeout)) != stopTask)
+            {
+                _logger.LogError($"The Discord client did not shut down within {DiscordShutdownTimeout.TotalSeconds} seconds; abandoning it and starting a new one.");
+                _client = null;
+                _slashCommands = null;
+                _socketClosedAt = null;
+                _heartbeatSentAt = null;
+                _currentSettings = new DiscordSettings();
+            }
+
+            // Give Discord a short pause before the next connection attempt.
+            _waitTimeout = 3;
+        }
+
+        /// <summary>
+        /// Disposes a client that failed to connect, so its internal reconnect loop does not keep running in the background.
+        /// </summary>
+        private async Task AbandonFailedClientAsync()
+        {
+            var disposeTask = DisposeClient();
+
+            if (await Task.WhenAny(disposeTask, Task.Delay(DiscordShutdownTimeout)) != disposeTask)
+            {
+                _logger.LogWarning("The Discord client that failed to connect did not shut down in time; abandoning it.");
+            }
+
+            _client = null;
+            _slashCommands = null;
         }
 
         private async Task StopDiscordAsync()
@@ -259,17 +299,27 @@ namespace Requestrr.WebApi.RequestrrBot
                     {
                         _heartbeatSentAt = DateTime.Now;
                         _socketClosedAt = null;
-                        await _client.ConnectAsync();
+
+                        var connectTask = _client.ConnectAsync();
+
+                        if (await Task.WhenAny(connectTask, Task.Delay(DiscordConnectTimeout)) != connectTask)
+                        {
+                            _ = connectTask.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                            throw new TimeoutException($"Could not connect to Discord within {DiscordConnectTimeout.TotalMinutes} minutes.");
+                        }
+
+                        await connectTask;
                     }
                     catch (Exception ex) when (ex.InnerException is DSharpPlus.Exceptions.UnauthorizedException)
                     {
                         _logger.LogError("Discord token is incorrect, please check your token settings.");
-                        _client = null;
+                        await AbandonFailedClientAsync();
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError($"Error connecting to Discord, error: {ex.Message}");
-                        _client = null;
+                        await AbandonFailedClientAsync();
+                        _waitTimeout = 12;
                     }
                 }
 
