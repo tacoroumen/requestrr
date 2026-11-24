@@ -929,14 +929,14 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Overseerr
         /// <summary>
         /// Lists the Overseerr/Seerr users, for linking chat users to them in the web UI.
         /// </summary>
-        public async Task<IReadOnlyList<(int Id, string DisplayName)>> GetUsersAsync()
+        public async Task<IReadOnlyList<(int Id, string DisplayName, string Email)>> GetUsersAsync()
         {
             var response = await HttpGetAsync($"{BaseURL}user?take={int.MaxValue}&skip=0&sort=displayname");
             var jsonResponse = await response.Content.ReadAsStringAsync();
             await response.ThrowIfNotSuccessfulAsync("OverseerrFindAllUsers failed", x => x.error);
 
             return (JsonConvert.DeserializeObject<JSONAllUserQuery>(jsonResponse).Results ?? new List<JSONUserResult>())
-                .Select(x => (x.ID, x.DisplayName))
+                .Select(x => (x.ID, x.DisplayName, x.Email))
                 .ToArray();
         }
 
@@ -1397,6 +1397,8 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Overseerr
             public int ID { get; set; }
             [JsonProperty("displayName")]
             public string DisplayName { get; set; }
+            [JsonProperty("email")]
+            public string Email { get; set; }
         }
 
         public class JSONNetwork

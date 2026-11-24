@@ -21,7 +21,7 @@ import ChatClients from "./views/ChatClients.jsx";
 import Movies from "./views/Movies.jsx";
 import TvShows from "./views/TvShows.jsx";
 import Music from "./views/Music.jsx"
-import LinkedUsers from "./views/LinkedUsers.jsx";
+import Users from "./views/Users.jsx";
 import Register from "./views/Register.jsx";
 import Login from "./views/Login.jsx";
 import Logout from "./views/Logout.jsx";
@@ -60,10 +60,10 @@ var routes = [
     supportsAnonymousUser: true
   },
   {
-    path: "/linkedusers",
-    name: "Linked Users",
+    path: "/users",
+    name: "Users",
     icon: "fas fa-user-friends text-teal",
-    component: <LinkedUsers/>,
+    component: <Users/>,
     layout: "/admin",
     supportsAnonymousUser: true
   },

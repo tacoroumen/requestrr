@@ -39,7 +39,7 @@ namespace Requestrr.WebApi.Controllers.LinkedUsers
             try
             {
                 var users = await services.OverseerrClient.GetUsersAsync();
-                return Ok(users.Select(x => new { id = x.Id.ToString(), name = string.IsNullOrWhiteSpace(x.DisplayName) ? $"User {x.Id}" : x.DisplayName }));
+                return Ok(users.Select(x => new { id = x.Id.ToString(), name = string.IsNullOrWhiteSpace(x.DisplayName) ? $"User {x.Id}" : x.DisplayName, email = x.Email ?? string.Empty }));
             }
             catch (Exception ex)
             {
