@@ -52,6 +52,33 @@ export function testSettings(settings) {
     };
 };
 
+export function testMatrixSettings(settings) {
+    return (dispatch, getState) => {
+        const state = getState();
+
+        return fetch("../api/chatclients/matrix/test", {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${state.user.token}`
+            },
+            body: JSON.stringify({
+                "HomeserverUrl": settings.homeserverUrl,
+                "AccessToken": settings.accessToken,
+            })
+        })
+            .then(data => data.json())
+            .then(data => {
+                if (data.ok) {
+                    return { ok: true };
+                }
+
+                return { ok: false, error: data }
+            });
+    };
+};
+
 export function save(saveModel) {
     return (dispatch, getState) => {
         const state = getState();
@@ -83,6 +110,7 @@ export function save(saveModel) {
                 'NotificationMode': saveModel.notificationMode,
                 'NotificationChannels': saveModel.notificationChannels,
                 'AutomaticallyPurgeCommandMessages': saveModel.automaticallyPurgeCommandMessages,
+                'Matrix': saveModel.matrix,
                 'Language': saveModel.language,
             })
         })

@@ -7,10 +7,8 @@ namespace Requestrr.WebApi.Controllers.ChatClients
         [Required]
         public string Client { get; set; }
 
-        [Required]
         public string ClientId { get; set; }
 
-        [Required]
         public string BotToken { get; set; }
 
         public string StatusMessage { get; set; }
@@ -45,9 +43,37 @@ namespace Requestrr.WebApi.Controllers.ChatClients
 
         public bool AutomaticallyPurgeCommandMessages { get; set; }
 
+        public MatrixChatClientSettingsModel Matrix { get; set; }
+
         public string Language { get; set; }
 
         public string[] AvailableLanguages { get; set; }
+    }
+
+    public class MatrixChatClientSettingsModel
+    {
+        public string HomeserverUrl { get; set; }
+
+        public string AccessToken { get; set; }
+
+        public string CommandPrefix { get; set; }
+
+        public string[] MonitoredRooms { get; set; }
+
+        public string NotificationMode { get; set; }
+
+        public string[] NotificationRooms { get; set; }
+
+        public bool AutomaticallyNotifyRequesters { get; set; }
+    }
+
+    public class MatrixTestSettingsModel
+    {
+        [Required]
+        public string HomeserverUrl { get; set; }
+
+        [Required]
+        public string AccessToken { get; set; }
     }
 
     public class ChatClientTestSettingsModel

@@ -32,6 +32,11 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 settings.ChatClients.Discord.NotificationChannels = JToken.FromObject(chatClientsSettings.Discord.NotificationChannels);
                 settings.ChatClients.Discord.AutomaticallyPurgeCommandMessages = chatClientsSettings.Discord.AutomaticallyPurgeCommandMessages;
 
+                if (chatClientsSettings.Matrix != null)
+                {
+                    settings.ChatClients.Matrix = JToken.FromObject(chatClientsSettings.Matrix);
+                }
+
                 settings.BotClient.Client = botClientSettings.Client;
 
                 settings.ChatClients.Language = chatClientsSettings.Language.ToLower();

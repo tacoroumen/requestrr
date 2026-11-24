@@ -33,9 +33,21 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 AutomaticallyPurgeCommandMessages = (bool)settings.ChatClients.Discord.AutomaticallyPurgeCommandMessages,
             };
 
+            var matrix = new RequestrrBot.ChatClients.Matrix.MatrixSettingsProvider().Provide();
+
             return new ChatClientsSettings
             {
                 Discord = discordSettings,
+                Matrix = new MatrixSettings
+                {
+                    HomeserverUrl = matrix.HomeserverUrl,
+                    AccessToken = matrix.AccessToken,
+                    CommandPrefix = matrix.CommandPrefix,
+                    MonitoredRooms = matrix.MonitoredRooms,
+                    AutomaticallyNotifyRequesters = matrix.AutomaticallyNotifyRequesters,
+                    NotificationMode = matrix.NotificationMode,
+                    NotificationRooms = matrix.NotificationRooms,
+                },
                 Language = settings.ChatClients.Language,
             };
         }

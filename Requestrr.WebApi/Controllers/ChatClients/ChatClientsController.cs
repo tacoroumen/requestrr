@@ -31,7 +31,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
         {
             return Ok(new ChatClientsSettingsModel
             {
-                Client = "Discord",
+                Client = Requestrr.WebApi.RequestrrBot.BotClientSelection.Current(),
                 StatusMessage = _chatClientsSettings.Discord.StatusMessage,
                 BotToken = _chatClientsSettings.Discord.BotToken,
                 ClientId = _chatClientsSettings.Discord.ClientId,
@@ -50,6 +50,16 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 NotificationMode = _chatClientsSettings.Discord.NotificationMode,
                 NotificationChannels = _chatClientsSettings.Discord.NotificationChannels ?? Array.Empty<string>(),
                 AutomaticallyPurgeCommandMessages = _chatClientsSettings.Discord.AutomaticallyPurgeCommandMessages,
+                Matrix = new MatrixChatClientSettingsModel
+                {
+                    HomeserverUrl = _chatClientsSettings.Matrix.HomeserverUrl,
+                    AccessToken = _chatClientsSettings.Matrix.AccessToken,
+                    CommandPrefix = _chatClientsSettings.Matrix.CommandPrefix,
+                    MonitoredRooms = _chatClientsSettings.Matrix.MonitoredRooms,
+                    NotificationMode = _chatClientsSettings.Matrix.NotificationMode,
+                    NotificationRooms = _chatClientsSettings.Matrix.NotificationRooms,
+                    AutomaticallyNotifyRequesters = _chatClientsSettings.Matrix.AutomaticallyNotifyRequesters,
+                },
                 Language = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(_chatClientsSettings.Language.ToLower()),
                 AvailableLanguages = GetLanguages()
             });
@@ -122,12 +132,67 @@ namespace Requestrr.WebApi.Controllers.ChatClients
             }
         }
 
+        [HttpPost("matrix/test")]
+        public async Task<IActionResult> TestMatrixSettings([FromBody] MatrixTestSettingsModel model)
+        {
+            if (!Uri.TryCreate(model.HomeserverUrl?.Trim(), UriKind.Absolute, out var homeserver) || (homeserver.Scheme != Uri.UriSchemeHttps && homeserver.Scheme != Uri.UriSchemeHttp))
+            {
+                return BadRequest("Enter the homeserver URL, starting with https:// or http://.");
+            }
+
+            try
+            {
+                using var client = new Requestrr.WebApi.RequestrrBot.ChatClients.Matrix.MatrixApiClient(homeserver.ToString(), model.AccessToken.Trim());
+                using var timeout = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(15));
+                var userId = await client.WhoAmIAsync(timeout.Token);
+                return Ok(new { ok = true, userId });
+            }
+            catch (Requestrr.WebApi.RequestrrBot.ChatClients.Matrix.MatrixApiException ex) when (ex.ErrorCode == "M_UNKNOWN_TOKEN" || ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                return BadRequest("The homeserver rejected the access token.");
+            }
+            catch (Exception)
+            {
+                return BadRequest("Could not reach the Matrix homeserver. Check the URL.");
+            }
+        }
+
         [HttpPost()]
         public async Task<IActionResult> SaveAsync([FromBody] ChatClientsSettingsModel model)
         {
-            if (!model.Client.Equals("discord", System.StringComparison.InvariantCultureIgnoreCase))
+            var isMatrix = string.Equals(model.Client, "matrix", StringComparison.InvariantCultureIgnoreCase);
+
+            if (!isMatrix && !string.Equals(model.Client, "discord", StringComparison.InvariantCultureIgnoreCase))
             {
                 return BadRequest("Invalid client was selected");
+            }
+
+            if (model.Matrix != null)
+            {
+                var matrixError = ValidateAndApplyMatrix(model.Matrix, isMatrix);
+
+                if (matrixError != null)
+                {
+                    return BadRequest(matrixError);
+                }
+            }
+            else if (isMatrix)
+            {
+                return BadRequest("Matrix settings are missing.");
+            }
+
+            if (isMatrix)
+            {
+                // Keep the stored Discord settings as they are, so switching back to Discord restores them.
+                _chatClientsSettings.Language = model.Language;
+                _botClientsSettings.Client = "Matrix";
+                ChatClientsSettingsRepository.Update(_botClientsSettings, _chatClientsSettings);
+                return Ok(new { ok = true });
+            }
+
+            if (string.IsNullOrWhiteSpace(model.ClientId) || string.IsNullOrWhiteSpace(model.BotToken))
+            {
+                return BadRequest("The Discord application id and bot token are required.");
             }
 
             if (model.TvShowRoles.Any(x => !ulong.TryParse(x, System.Globalization.NumberStyles.Integer, null, out _)))
@@ -186,11 +251,73 @@ namespace Requestrr.WebApi.Controllers.ChatClients
             _chatClientsSettings.Discord.AutomaticallyPurgeCommandMessages = model.AutomaticallyPurgeCommandMessages;
             _chatClientsSettings.Language = model.Language;
 
-            _botClientsSettings.Client = model.Client;
+            _botClientsSettings.Client = "Discord";
 
             ChatClientsSettingsRepository.Update(_botClientsSettings, _chatClientsSettings);
 
             return Ok(new { ok = true });
+        }
+
+        private string ValidateAndApplyMatrix(MatrixChatClientSettingsModel matrix, bool required)
+        {
+            var homeserverUrl = (matrix.HomeserverUrl ?? string.Empty).Trim().TrimEnd('/');
+            var accessToken = (matrix.AccessToken ?? string.Empty).Trim();
+            var monitoredRooms = CleanIds(matrix.MonitoredRooms);
+            var notificationRooms = CleanIds(matrix.NotificationRooms);
+            var notificationMode = matrix.NotificationMode ?? "PrivateMessages";
+
+            if (required || !string.IsNullOrEmpty(homeserverUrl))
+            {
+                if (!Uri.TryCreate(homeserverUrl, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
+                {
+                    return "Enter the Matrix homeserver URL, starting with https:// or http://.";
+                }
+            }
+
+            if (required && string.IsNullOrEmpty(accessToken))
+            {
+                return "The Matrix access token is required.";
+            }
+
+            if (monitoredRooms.Concat(notificationRooms).Any(x => !(x.StartsWith("!") || x.StartsWith("#")) || !x.Contains(':')))
+            {
+                return "Enter Matrix rooms as room ids (!abc:example.org) or aliases (#room:example.org).";
+            }
+
+            if (notificationMode != "Disabled" && notificationMode != "PrivateMessages" && notificationMode != "Channels")
+            {
+                return "Invalid Matrix notification mode.";
+            }
+
+            if (required && notificationMode == "Channels" && !notificationRooms.Any())
+            {
+                return "Add at least one Matrix room to send notifications to.";
+            }
+
+            var prefix = string.IsNullOrWhiteSpace(matrix.CommandPrefix) ? "!" : matrix.CommandPrefix.Trim();
+
+            if (prefix.Length > 5 || prefix.Any(char.IsWhiteSpace))
+            {
+                return "The Matrix command prefix must be 1 to 5 characters without spaces.";
+            }
+
+            _chatClientsSettings.Matrix = new MatrixSettings
+            {
+                HomeserverUrl = homeserverUrl,
+                AccessToken = accessToken,
+                CommandPrefix = prefix,
+                MonitoredRooms = monitoredRooms,
+                NotificationMode = notificationMode,
+                NotificationRooms = notificationRooms,
+                AutomaticallyNotifyRequesters = matrix.AutomaticallyNotifyRequesters,
+            };
+
+            return null;
+        }
+
+        private static string[] CleanIds(string[] ids)
+        {
+            return (ids ?? Array.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct().ToArray();
         }
 
         private string[] GetLanguages()

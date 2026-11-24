@@ -19,7 +19,7 @@ import {useEffect, useState} from "react";
 import {Oval} from 'react-loader-spinner'
 import {useDispatch} from 'react-redux';
 import {Alert} from "reactstrap";
-import {testSettings} from "../store/actions/ChatClientsActions"
+import {testSettings, testMatrixSettings} from "../store/actions/ChatClientsActions"
 import {getSettings} from "../store/actions/ChatClientsActions"
 import {save} from "../store/actions/ChatClientsActions"
 import MultiDropdown from "../components/Inputs/MultiDropdown"
@@ -80,6 +80,15 @@ function ChatClients(props) {
   const [notificationMode, setNotificationMode] = useState("PrivateMessages");
   const [notificationChannels, setNotificationChannels] = useState([]);
   const [automaticallyPurgeCommandMessages, setAutomaticallyPurgeCommandMessages] = useState(true);
+  const [matrixHomeserverUrl, setMatrixHomeserverUrl] = useState("");
+  const [matrixAccessToken, setMatrixAccessToken] = useState("");
+  const [matrixCommandPrefix, setMatrixCommandPrefix] = useState("!");
+  const [matrixMonitoredRooms, setMatrixMonitoredRooms] = useState([]);
+  const [matrixNotificationMode, setMatrixNotificationMode] = useState("PrivateMessages");
+  const [matrixNotificationRooms, setMatrixNotificationRooms] = useState([]);
+  const [matrixAutomaticallyNotifyRequesters, setMatrixAutomaticallyNotifyRequesters] = useState(true);
+  const [matrixHomeserverUrlInvalid, setMatrixHomeserverUrlInvalid] = useState(false);
+  const [matrixAccessTokenInvalid, setMatrixAccessTokenInvalid] = useState(false);
   const [language, setLanguage] = useState("english");
   const [availableLanguages, setAvailableLanguages] = useState([]);
 
@@ -109,6 +118,14 @@ function ChatClients(props) {
         setNotificationMode(data.payload.notificationMode);
         setNotificationChannels(data.payload.notificationChannels);
         setAutomaticallyPurgeCommandMessages(data.payload.automaticallyPurgeCommandMessages);
+        const matrix = data.payload.matrix || {};
+        setMatrixHomeserverUrl(matrix.homeserverUrl || "");
+        setMatrixAccessToken(matrix.accessToken || "");
+        setMatrixCommandPrefix(matrix.commandPrefix || "!");
+        setMatrixMonitoredRooms(matrix.monitoredRooms || []);
+        setMatrixNotificationMode(matrix.notificationMode || "PrivateMessages");
+        setMatrixNotificationRooms(matrix.notificationRooms || []);
+        setMatrixAutomaticallyNotifyRequesters(matrix.automaticallyNotifyRequesters !== false);
         setLanguage(data.payload.language);
         setAvailableLanguages(data.payload.availableLanguages);
       });
@@ -180,17 +197,61 @@ function ChatClients(props) {
   };
 
 
+  const validateMatrixHomeserverUrl = () => {
+    return /^https?:\/\/\S+$/i.test(matrixHomeserverUrl.trim());
+  };
+
+  const validateMatrixAccessToken = () => {
+    return /\S/.test(matrixAccessToken);
+  };
+
+  const isMatrix = () => chatClient === "Matrix";
+
+  const validateSelectedClient = () => {
+    if (isMatrix()) {
+      setMatrixHomeserverUrlInvalid(!validateMatrixHomeserverUrl());
+      setMatrixAccessTokenInvalid(!validateMatrixAccessToken());
+      return validateMatrixHomeserverUrl() && validateMatrixAccessToken();
+    }
+
+    triggerClientIdValidation();
+    triggerBotTokenValidation();
+    return validateBotToken() && validateClientId();
+  };
+
+  const onTestMatrixSettings = (e) => {
+    e.preventDefault();
+
+    if (!isTestingSettings && validateSelectedClient()) {
+      setIsTestingSettings(true);
+
+      dispatch(testMatrixSettings({
+        homeserverUrl: matrixHomeserverUrl.trim(),
+        accessToken: matrixAccessToken.trim(),
+      }))
+        .then(data => {
+          setIsTestingSettings(false);
+          setTestSettingsRequested(true);
+
+          if (data.ok) {
+            setTestSettingsError("");
+            setTestSettingsSuccess(true);
+          } else {
+            setTestSettingsError(typeof (data.error) === "string" ? data.error : "An unknown error occurred while testing the settings");
+            setTestSettingsSuccess(false);
+          }
+        });
+    }
+  };
+
   const onSaving = (e) => {
     e.preventDefault();
 
     triggerChatClientValidation();
-    triggerClientIdValidation();
-    triggerBotTokenValidation();
 
     if (!isSaving) {
       if (validateChatClient()
-        && validateBotToken()
-        && validateClientId()) {
+        && validateSelectedClient()) {
         setIsSaving(true);
 
         dispatch(save({
@@ -213,6 +274,15 @@ function ChatClients(props) {
           notificationMode: notificationMode,
           notificationChannels: notificationChannels,
           automaticallyPurgeCommandMessages: automaticallyPurgeCommandMessages,
+          matrix: {
+            homeserverUrl: matrixHomeserverUrl.trim(),
+            accessToken: matrixAccessToken.trim(),
+            commandPrefix: matrixCommandPrefix.trim() || "!",
+            monitoredRooms: matrixMonitoredRooms,
+            notificationMode: matrixNotificationMode,
+            notificationRooms: matrixNotificationRooms,
+            automaticallyNotifyRequesters: matrixAutomaticallyNotifyRequesters,
+          },
           language: language,
         }))
           .then(data => {
@@ -343,18 +413,216 @@ function ChatClients(props) {
                     <Row>
                       <Col lg="6">
                         <FormGroup>
-                          <label
-                            className="form-control-label"
-                            htmlFor="input-client"
-                          >
-                            Chat Client
-                          </label>
-                          <Input id="input-client" value="Discord" disabled="disabled" className="form-control"
-                                 type="text"/>
+                          <Dropdown
+                            name="Chat Client"
+                            value={chatClient === "Matrix" ? "Matrix" : "Discord"}
+                            items={[{name: "Discord", value: "Discord"}, {name: "Matrix", value: "Matrix"}]}
+                            onChange={newClient => {
+                              setChatClient(newClient);
+                              setTestSettingsRequested(false);
+                            }}/>
                         </FormGroup>
                       </Col>
                     </Row>
                   </div>
+                  {chatClient === "Matrix" ? (
+                    <>
+                  <hr className="my-4"/>
+                  <div>
+                    <h6 className="heading-small text-muted mb-4">
+                      Matrix Bot Settings
+                    </h6>
+                  </div>
+                  <div className="pl-lg-4">
+                    <Row>
+                      <Col lg="6">
+                        <FormGroup className={matrixHomeserverUrlInvalid ? "has-danger" : ""}>
+                          <label className="form-control-label" htmlFor="input-matrix-homeserver">
+                            Homeserver URL
+                          </label>
+                          <Input
+                            value={matrixHomeserverUrl} onChange={e => setMatrixHomeserverUrl(e.target.value)}
+                            className="form-control-alternative"
+                            id="input-matrix-homeserver"
+                            placeholder="https://matrix.example.org"
+                            type="text"
+                          />
+                          {
+                            matrixHomeserverUrlInvalid ? (
+                                <Alert className="mt-3" color="warning">
+                                  <strong>Enter the homeserver URL, starting with https:// or http://.</strong>
+                                </Alert>)
+                              : null
+                          }
+                        </FormGroup>
+                      </Col>
+                      <Col lg="6">
+                        <FormGroup className={matrixAccessTokenInvalid ? "has-danger" : ""}>
+                          <label className="form-control-label" htmlFor="input-matrix-token">
+                            Bot Access Token
+                          </label>
+                          <Input
+                            value={matrixAccessToken} onChange={e => setMatrixAccessToken(e.target.value)}
+                            className="form-control-alternative"
+                            id="input-matrix-token"
+                            placeholder="Access token of the bot account"
+                            type="password"
+                          />
+                          {
+                            matrixAccessTokenInvalid ? (
+                                <Alert className="mt-3" color="warning">
+                                  <strong>Access token is required.</strong>
+                                </Alert>)
+                              : null
+                          }
+                        </FormGroup>
+                      </Col>
+                    </Row>
+                    <Row>
+                      <Col lg="6">
+                        <FormGroup>
+                          <label className="form-control-label" htmlFor="input-matrix-prefix">
+                            Command Prefix
+                          </label>
+                          <Input
+                            value={matrixCommandPrefix} onChange={e => setMatrixCommandPrefix(e.target.value)}
+                            className="form-control-alternative"
+                            id="input-matrix-prefix"
+                            placeholder="!"
+                            type="text"
+                          />
+                        </FormGroup>
+                      </Col>
+                      <Col lg="6">
+                        <FormGroup>
+                          <MultiDropdown
+                            name="Rooms to monitor (empty: any room the bot is in)"
+                            create={true}
+                            searchable={true}
+                            placeholder="Enter room ids (!abc:server) or aliases (#room:server)"
+                            labelField="name"
+                            valueField="id"
+                            dropdownHandle={false}
+                            selectedItems={matrixMonitoredRooms.map(x => {
+                              return {name: x, id: x}
+                            })}
+                            items={matrixMonitoredRooms.map(x => {
+                              return {name: x, id: x}
+                            })}
+                            onChange={newRooms => setMatrixMonitoredRooms(newRooms.filter(x => /\S/.test(x.id)).map(x => x.id.trim()))}/>
+                        </FormGroup>
+                      </Col>
+                    </Row>
+                    <Row>
+                      <Col md="12">
+                        <p className="text-muted text-sm">
+                          Create a separate Matrix account for the bot and paste its access token here. The bot works in unencrypted rooms only.
+                          Without monitored rooms, the bot joins rooms when a user on its own homeserver invites it.
+                        </p>
+                      </Col>
+                    </Row>
+                    <Row>
+                      <Col>
+                        <FormGroup className="mt-2">
+                          {
+                            testSettingsRequested && !isTestingSettings ?
+                              !testSettingsSuccess ? (
+                                  <Alert className="text-center" color="danger">
+                                    <strong>{testSettingsError}</strong>
+                                  </Alert>)
+                                : <Alert className="text-center" color="success">
+                                  <strong>Signed in to Matrix successfully.</strong>
+                                </Alert>
+                              : null
+                          }
+                        </FormGroup>
+                        <FormGroup className="text-right">
+                          <button onClick={onTestMatrixSettings} disabled={isTestingSettings}
+                                  className="btn btn-icon btn-3 btn-default" type="button">
+                            <span className="btn-inner--icon">
+                              {
+                                isTestingSettings ? (
+                                  <Oval
+                                    wrapperClass="loader"
+                                    type="Oval"
+                                    color="#11cdef"
+                                    height={19}
+                                    width={19}
+                                  />)
+                                  : (<i className="fas fa-cogs"></i>)
+                              }</span>
+                            <span className="btn-inner--text">Test Settings</span>
+                          </button>
+                        </FormGroup>
+                      </Col>
+                    </Row>
+                  </div>
+                  <hr className="my-4"/>
+                  <div>
+                    <h6 className="heading-small text-muted mt-4">
+                      Matrix Notification Settings
+                    </h6>
+                  </div>
+                  <div className="pl-lg-4">
+                    <Row>
+                      <Col lg="6">
+                        <Dropdown
+                          name="Notifications"
+                          value={matrixNotificationMode}
+                          items={[{name: "Disabled", value: "Disabled"}, {
+                            name: "Via direct messages",
+                            value: "PrivateMessages"
+                          }, {name: "Via room(s)", value: "Channels"}]}
+                          onChange={newMode => setMatrixNotificationMode(newMode)}/>
+                      </Col>
+                      <Col lg="6">
+                        {
+                          matrixNotificationMode === "Channels"
+                            ? <FormGroup>
+                              <MultiDropdown
+                                name="Room(s) to send notifications to"
+                                create={true}
+                                searchable={true}
+                                placeholder="Enter room ids or aliases"
+                                labelField="name"
+                                valueField="id"
+                                dropdownHandle={false}
+                                selectedItems={matrixNotificationRooms.map(x => {
+                                  return {name: x, id: x}
+                                })}
+                                items={matrixNotificationRooms.map(x => {
+                                  return {name: x, id: x}
+                                })}
+                                onChange={newRooms => setMatrixNotificationRooms(newRooms.filter(x => /\S/.test(x.id)).map(x => x.id.trim()))}/>
+                            </FormGroup>
+                            : null
+                        }
+                      </Col>
+                    </Row>
+                    {
+                      matrixNotificationMode !== "Disabled"
+                        ? <Row>
+                          <Col md="12">
+                            <FormGroup className="custom-control custom-control-alternative custom-checkbox mb-3">
+                              <Input
+                                className="custom-control-input"
+                                id="matrixAutomaticRequests"
+                                type="checkbox"
+                                onChange={e => setMatrixAutomaticallyNotifyRequesters(!matrixAutomaticallyNotifyRequesters)}
+                                checked={matrixAutomaticallyNotifyRequesters}
+                              />
+                              <label className="custom-control-label" htmlFor="matrixAutomaticRequests">
+                                <span className="text-muted">Automatically notify users of downloaded content when they make requests</span>
+                              </label>
+                            </FormGroup>
+                          </Col>
+                        </Row>
+                        : null
+                    }
+                  </div>
+                    </>
+                  ) : (
+                    <>
                   <hr className="my-4"/>
                   <div>
                     <h6 className="heading-small text-muted mb-4">
@@ -846,6 +1114,8 @@ function ChatClients(props) {
                       </Col>
                     </Row>
                   </div>
+                    </>
+                  )}
                   <hr className="my-4"/>
                   <h6 className="heading-small text-muted mb-4">
                     Chat Command Options

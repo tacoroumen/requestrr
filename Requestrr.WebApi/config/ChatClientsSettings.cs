@@ -3,7 +3,19 @@ namespace Requestrr.WebApi.config
     public class ChatClientsSettings
     {
         public DiscordSettings Discord { get; set; }
+        public MatrixSettings Matrix { get; set; }
         public string Language { get; set; }
+    }
+
+    public class MatrixSettings
+    {
+        public string HomeserverUrl { get; set; } = string.Empty;
+        public string AccessToken { get; set; } = string.Empty;
+        public string CommandPrefix { get; set; } = "!";
+        public string[] MonitoredRooms { get; set; } = System.Array.Empty<string>();
+        public bool AutomaticallyNotifyRequesters { get; set; } = true;
+        public string NotificationMode { get; set; } = "PrivateMessages";
+        public string[] NotificationRooms { get; set; } = System.Array.Empty<string>();
     }
 
     public class DiscordSettings
