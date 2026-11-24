@@ -31,6 +31,9 @@ namespace Requestrr.WebApi.RequestrrBot.Notifications.TvShows
 
         public async Task<HashSet<string>> NotifyAsync(IReadOnlyCollection<string> userIds, TvShow tvShow, int seasonNumber, CancellationToken token)
         {
+            // Notifications from other chat clients (e.g. Matrix user IDs) are left for that client.
+            userIds = userIds.Where(DiscordConstants.IsDiscordUserId).ToArray();
+
             var userNotified = new HashSet<string>();
 
             if (_discordClient.Guilds.Any())

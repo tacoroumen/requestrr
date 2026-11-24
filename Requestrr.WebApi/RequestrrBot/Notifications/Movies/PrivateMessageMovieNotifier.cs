@@ -27,6 +27,9 @@ namespace Requestrr.WebApi.RequestrrBot.Notifications.Movies
 
         public async Task<HashSet<string>> NotifyAsync(IReadOnlyCollection<string> userIds, Movie movie, CancellationToken token)
         {
+            // Notifications from other chat clients (e.g. Matrix user IDs) are left for that client.
+            userIds = userIds.Where(DiscordConstants.IsDiscordUserId).ToArray();
+
             var userNotified = new HashSet<string>();
 
             if (_discordClient.Guilds.Any())

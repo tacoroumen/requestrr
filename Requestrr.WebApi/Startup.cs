@@ -108,6 +108,8 @@ namespace Requestrr.WebApi
             services.AddSingleton<LidarrSettingsProvider>();
             services.AddSingleton<RequestrrBot.RequestrrServices>();
             services.AddSingleton<RequestrrBot.ChatBot>();
+            services.AddSingleton<RequestrrBot.ChatClients.Matrix.MatrixSettingsProvider>();
+            services.AddSingleton<RequestrrBot.ChatClients.Matrix.MatrixBot>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -167,6 +169,9 @@ namespace Requestrr.WebApi
 
             _requestrrBot = (RequestrrBot.ChatBot)app.ApplicationServices.GetService(typeof(RequestrrBot.ChatBot));
             _requestrrBot.Start();
+
+            var matrixBot = (RequestrrBot.ChatClients.Matrix.MatrixBot)app.ApplicationServices.GetService(typeof(RequestrrBot.ChatClients.Matrix.MatrixBot));
+            matrixBot.Start();
         }
     }
 }

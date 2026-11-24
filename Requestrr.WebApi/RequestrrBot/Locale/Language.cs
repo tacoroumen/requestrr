@@ -28,6 +28,8 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
 
         public static string IssueEnabledStart = "[IssueEnabledStart]";
         public static string IssueEnabledEnd = "[IssueEnabledEnd]";
+
+        public static string Count = "[Count]";
     }
 
     public class Language
@@ -537,5 +539,59 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
 
         [JsonProperty("Discord.Command.Request.Admin.Summary")]
         public string DiscordCommandRequestAdminSummary { get; set; }
+    
+        [JsonProperty("Matrix.Help.Message")]
+        public string MatrixHelpMessage { get; set; } = "Hello [AuthorUsername]! I am [BotUsername], your media request bot.\n\nAvailable commands:\n[FullCommandList]\n\nExample: `[MovieCommandTitle] Dune`\n\nWhen I show a numbered list, reply with a number. When I ask you to confirm, reply `yes` or react with ✅. Reply `cancel` to stop.";
+
+        [JsonProperty("Matrix.Selection.Prompt")]
+        public string MatrixSelectionPrompt { get; set; } = "Reply with a number from 1 to [Count], or `cancel`.";
+
+        [JsonProperty("Matrix.Confirm.Prompt")]
+        public string MatrixConfirmPrompt { get; set; } = "Reply `yes` or react with ✅ to confirm, or reply `cancel`.";
+
+        [JsonProperty("Matrix.Cancelled")]
+        public string MatrixCancelled { get; set; } = "Cancelled.";
+
+        [JsonProperty("Matrix.NotSupported")]
+        public string MatrixNotSupported { get; set; } = "This action is not available on Matrix yet.";
+
+        [JsonProperty("Matrix.Command.Movie.Search")]
+        public string MatrixCommandMovieSearch { get; set; } = "I found these movies:";
+
+        [JsonProperty("Matrix.Command.Movie.Request.Confirm")]
+        public string MatrixCommandMovieRequestConfirm { get; set; } = "Do you want to request this movie?";
+
+        [JsonProperty("Matrix.Command.Movie.NotReleased")]
+        public string MatrixCommandMovieNotReleased { get; set; } = "This movie has not been released yet. Do you want to request it anyway?";
+
+        [JsonProperty("Matrix.Command.Movie.Notification.Request")]
+        public string MatrixCommandMovieNotificationRequest { get; set; } = "This movie has already been requested. Do you want a notification when it becomes available?";
+
+        [JsonProperty("Matrix.Command.Tv.Search")]
+        public string MatrixCommandTvSearch { get; set; } = "I found these tv shows:";
+
+        [JsonProperty("Matrix.Command.Tv.Seasons")]
+        public string MatrixCommandTvSeasons { get; set; } = "Which season do you want to request?";
+
+        [JsonProperty("Matrix.Command.Tv.Request.Confirm.Season")]
+        public string MatrixCommandTvRequestConfirmSeason { get; set; } = "Do you want to request **season [SeasonNumber]** of this tv show?";
+
+        [JsonProperty("Matrix.Command.Tv.Request.Confirm.FutureSeasons")]
+        public string MatrixCommandTvRequestConfirmFutureSeasons { get; set; } = "Do you want to request **future seasons** of this tv show?";
+
+        [JsonProperty("Matrix.Command.Tv.Request.Confirm.AllSeasons")]
+        public string MatrixCommandTvRequestConfirmAllSeasons { get; set; } = "Do you want to request **all seasons** of this tv show?";
+
+        [JsonProperty("Matrix.Command.Tv.Notification.Request.Season")]
+        public string MatrixCommandTvNotificationRequestSeason { get; set; } = "**Season [SeasonNumber]** has already been requested. Do you want a notification when it becomes available?";
+
+        [JsonProperty("Matrix.Command.Tv.Notification.Request.FutureSeason.Missing")]
+        public string MatrixCommandTvNotificationRequestFutureSeasonMissing { get; set; } = "**Future seasons** have already been requested. Do you want a notification when future seasons become available?";
+
+        [JsonProperty("Matrix.Command.Tv.Notification.Request.FutureSeason.Requested")]
+        public string MatrixCommandTvNotificationRequestFutureSeasonRequested { get; set; } = "**All seasons** have already been requested. Do you want a notification when future seasons become available?";
+
+        [JsonProperty("Matrix.Command.Tv.Notification.Request.FutureSeason.Available")]
+        public string MatrixCommandTvNotificationRequestFutureSeasonAvailable { get; set; } = "**All seasons** are already available. Do you want a notification when future seasons become available?";
     }
 }

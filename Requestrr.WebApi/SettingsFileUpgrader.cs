@@ -351,6 +351,33 @@ namespace Requestrr.WebApi
 
                 File.WriteAllText(settingsFilePath, JsonConvert.SerializeObject(settingsJson));
             }
+
+            if (settingsJson.Version.ToString().Equals("2.1.4", StringComparison.InvariantCultureIgnoreCase))
+            {
+                settingsJson.Version = "2.1.5";
+
+                var chatClients = (JObject)settingsJson.ChatClients;
+                if (chatClients["Matrix"] == null)
+                {
+                    chatClients.Add("Matrix", JToken.FromObject(new
+                    {
+                        HomeserverUrl = string.Empty,
+                        AccessToken = string.Empty,
+                        CommandPrefix = "!",
+                        MonitoredRooms = Array.Empty<string>(),
+                        AutomaticallyNotifyRequesters = true,
+                        NotificationMode = "PrivateMessages",
+                        NotificationRooms = Array.Empty<string>(),
+                    }));
+                }
+
+                if (string.IsNullOrWhiteSpace((string)settingsJson.BotClient.Client))
+                {
+                    settingsJson.BotClient.Client = "Discord";
+                }
+
+                File.WriteAllText(settingsFilePath, JsonConvert.SerializeObject(settingsJson));
+            }
         }
     }
 }

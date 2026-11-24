@@ -25,6 +25,15 @@
       "NotificationChannels": [],
       "AutomaticallyPurgeCommandMessages": true
     },
+    "Matrix": {
+      "HomeserverUrl": "",
+      "AccessToken": "",
+      "CommandPrefix": "!",
+      "MonitoredRooms": [],
+      "AutomaticallyNotifyRequesters": true,
+      "NotificationMode": "PrivateMessages",
+      "NotificationRooms": []
+    },
     "Language": "english"
   },
   "DownloadClients": {
@@ -135,5 +144,5 @@
   "Port": 4545,
   "BaseUrl": "",
   "DisableAuthentication": false,
-  "Version": "2.1.4"
+  "Version": "2.1.5"
 }

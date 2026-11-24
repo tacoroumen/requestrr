@@ -27,6 +27,9 @@ namespace Requestrr.WebApi.RequestrrBot.Notifications.Music
 
         public async Task<HashSet<string>> NotifyArtistAsync(IReadOnlyCollection<string> userIds, MusicArtist musicArtist, CancellationToken token)
         {
+            // Notifications from other chat clients (e.g. Matrix user IDs) are left for that client.
+            userIds = userIds.Where(DiscordConstants.IsDiscordUserId).ToArray();
+
             HashSet<string> userNotified = new HashSet<string>();
 
             if (_discordClient.Guilds.Any())
