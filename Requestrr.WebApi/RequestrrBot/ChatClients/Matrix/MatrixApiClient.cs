@@ -94,6 +94,22 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         /// <summary>
         /// The user's power level in a room (0 for normal users, 50 for moderators, 100 for admins by default).
         /// </summary>
+        /// <summary>
+        /// Tells whether end-to-end encryption is turned on in the room (it has an m.room.encryption state event).
+        /// </summary>
+        public async Task<bool> IsRoomEncryptedAsync(string roomId, CancellationToken token = default)
+        {
+            try
+            {
+                var encryption = await SendAsync(HttpMethod.Get, $"/_matrix/client/v3/rooms/{Uri.EscapeDataString(roomId)}/state/m.room.encryption", null, token);
+                return !string.IsNullOrEmpty((string)encryption["algorithm"]);
+            }
+            catch (MatrixApiException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                return false;
+            }
+        }
+
         public async Task<int> GetPowerLevelAsync(string roomId, string userId, CancellationToken token = default)
         {
             var levels = await SendAsync(HttpMethod.Get, $"/_matrix/client/v3/rooms/{Uri.EscapeDataString(roomId)}/state/m.room.power_levels", null, token);

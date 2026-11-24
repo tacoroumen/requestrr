@@ -13,6 +13,7 @@ using Requestrr.WebApi.RequestrrBot.DownloadClients.Radarr;
 using Requestrr.WebApi.RequestrrBot.DownloadClients.Sonarr;
 using Requestrr.WebApi.RequestrrBot.Locale;
 using Requestrr.WebApi.RequestrrBot.Movies;
+using Requestrr.WebApi.RequestrrBot.Music;
 using Requestrr.WebApi.RequestrrBot.Notifications;
 using Requestrr.WebApi.RequestrrBot.Notifications.Movies;
 using Requestrr.WebApi.RequestrrBot.Notifications.TvShows;
@@ -57,6 +58,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         private readonly RadarrSettingsProvider _radarrSettingsProvider;
         private readonly SonarrSettingsProvider _sonarrSettingsProvider;
         private readonly OverseerrSettingsProvider _overseerrSettingsProvider;
+        private readonly DownloadClients.Lidarr.LidarrSettingsProvider _lidarrSettingsProvider;
         private readonly RequestrrServices _services;
         private readonly MatrixConversationStore _conversations = new MatrixConversationStore();
         private readonly ConcurrentDictionary<string, string> _displayNames = new ConcurrentDictionary<string, string>();
@@ -78,6 +80,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         private string _botDisplayName;
         private MovieNotificationEngine _movieNotificationEngine;
         private TvShowNotificationEngine _tvShowNotificationEngine;
+        private Notifications.Music.MusicNotificationEngine _musicNotificationEngine;
 
         /// <summary>
         /// Lists the members of the rooms the bot is in (including direct rooms), for the account picker on the Users page.
@@ -119,6 +122,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             RadarrSettingsProvider radarrSettingsProvider,
             SonarrSettingsProvider sonarrSettingsProvider,
             OverseerrSettingsProvider overseerrSettingsProvider,
+            DownloadClients.Lidarr.LidarrSettingsProvider lidarrSettingsProvider,
             RequestrrServices services)
         {
             _logger = logger;
@@ -127,6 +131,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             _radarrSettingsProvider = radarrSettingsProvider;
             _sonarrSettingsProvider = sonarrSettingsProvider;
             _overseerrSettingsProvider = overseerrSettingsProvider;
+            _lidarrSettingsProvider = lidarrSettingsProvider;
             _services = services;
         }
 
@@ -205,6 +210,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 string.Join(",", settings.MonitoredRooms), settings.NotificationMode, string.Join(",", settings.NotificationRooms), settings.AutomaticallyNotifyRequesters, string.Join(",", settings.ApprovalRooms),
                 download.MovieDownloadClient, download.MovieDownloadClientConfigurationHash,
                 download.TvShowDownloadClient, download.TvShowDownloadClientConfigurationHash,
+                download.MusicDownloadClient, download.MusicDownloadClientConfigurationHash,
                 Language.Current?.GetHashCode());
         }
 
@@ -236,6 +242,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 _radarrSettingsProvider.Provide(),
                 _sonarrSettingsProvider.Provide(),
                 _overseerrSettingsProvider.Provide(),
+                _lidarrSettingsProvider.Provider(),
                 GetMovieIssueClient() != null,
                 GetTvShowIssueClient() != null);
 
@@ -327,6 +334,12 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 _tvShowNotificationEngine = _services.TvShowWorkflowFactory.CreateTvShowNotificationEngine(notifier, _logger);
                 _tvShowNotificationEngine.Start();
             }
+
+            if (download.MusicDownloadClient != DownloadClient.Disabled)
+            {
+                _musicNotificationEngine = _services.MusicWorkflowFactory.CreateMusicNotificationEngine(notifier, _logger);
+                _musicNotificationEngine.Start();
+            }
         }
 
         private async Task StopSessionAsync()
@@ -347,6 +360,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             {
                 if (_movieNotificationEngine != null) await _movieNotificationEngine.StopAsync();
                 if (_tvShowNotificationEngine != null) await _tvShowNotificationEngine.StopAsync();
+                if (_musicNotificationEngine != null) await _musicNotificationEngine.StopAsync();
             }
             catch (Exception ex)
             {
@@ -355,6 +369,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
 
             _movieNotificationEngine = null;
             _tvShowNotificationEngine = null;
+            _musicNotificationEngine = null;
             _syncTask = null;
             _client?.Dispose();
             _client = null;
@@ -416,10 +431,24 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                     continue;
                 }
 
+                var inviteState = invite.Value["invite_state"]?["events"] as JArray ?? new JArray();
+
+                if (inviteState.Any(e => (string)e["type"] == "m.room.encryption"))
+                {
+                    await DeclineEncryptedRoomAsync(roomId, inviter, inviteState, token);
+                    continue;
+                }
+
                 try
                 {
                     await _client.JoinRoomAsync(roomId, token);
                     _logger.LogWarning($"Joined Matrix room {roomId} after an invite from {inviter}.");
+
+                    // Homeservers do not always share the encryption state with the invite, so check again once joined.
+                    if (await _client.IsRoomEncryptedAsync(roomId, token))
+                    {
+                        await DeclineEncryptedRoomAsync(roomId, inviter, inviteState, token);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -432,6 +461,31 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         /// With monitored rooms configured, the bot joins only those. Without them it accepts invites from users on its own homeserver,
         /// so strangers on other servers cannot pull the bot into their rooms.
         /// </summary>
+        /// <summary>
+        /// The bot does not support end-to-end encryption, so it cannot read or write in an encrypted room, so it leaves and tells the inviter in an unencrypted direct message.
+        /// </summary>
+        private async Task DeclineEncryptedRoomAsync(string roomId, string inviter, JArray inviteState, CancellationToken token)
+        {
+            var roomName = (string)inviteState.FirstOrDefault(e => (string)e["type"] == "m.room.name")?["content"]?["name"];
+
+            _logger.LogWarning($"Leaving Matrix room {roomId}: it is encrypted, and the bot does not support encryption.");
+
+            try { await _client.LeaveRoomAsync(roomId, token); } catch { }
+
+            if (inviter == null) return;
+
+            try
+            {
+                var directRoomId = await _client.CreateDirectRoomAsync(inviter, token);
+                await _client.SendMessageAsync(directRoomId, MatrixMessage.FromMarkdown(
+                    Language.Current.MatrixEncryptionRoomNotSupported.Replace("[Room]", string.IsNullOrWhiteSpace(roomName) ? roomId : roomName)), token);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Could not tell {inviter} that {roomId} is encrypted: {ex.Message}");
+            }
+        }
+
         private bool IsInviteAllowed(string roomId, string inviter)
         {
             if (_notificationRoomIds.Contains(roomId) || _approvalRoomIds.Contains(roomId))
@@ -671,7 +725,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             }
 
             var isMovie = command.Kind == MatrixCommandKind.MovieByTitle || command.Kind == MatrixCommandKind.MovieByTmdbId;
-            var levels = isMovie ? settings.MovieRequestLevels : settings.TvShowRequestLevels;
+            var isMusic = command.Kind == MatrixCommandKind.MusicArtist;
+            var levels = isMusic ? settings.MusicRequestLevels : isMovie ? settings.MovieRequestLevels : settings.TvShowRequestLevels;
 
             if (levels == null || !levels.Any())
             {
@@ -695,7 +750,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 return true;
             }
 
-            await context.SendAsync(Language.Current.MatrixRequestNotAllowed.Replace("[Category]", isMovie ? "movies" : "tv shows"));
+            await context.SendAsync(Language.Current.MatrixRequestNotAllowed.Replace("[Category]", isMusic ? "music" : isMovie ? "movies" : "tv shows"));
             return false;
         }
 
@@ -720,6 +775,9 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                         await CreateTvShowWorkflow(context, command.CategoryId).SearchTvShowAsync(tvdbId);
                     else
                         await context.SendAsync(command.Usage(_settings.CommandPrefix));
+                    break;
+                case MatrixCommandKind.MusicArtist:
+                    await CreateMusicWorkflow(context, command.CategoryId).SearchMusicForArtistAsync(argument);
                     break;
                 case MatrixCommandKind.MovieIssue:
                     await ReportMovieIssueAsync(context, argument);
@@ -885,6 +943,21 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         public IMovieNotificationWorkflow CreateMovieNotificationWorkflow(MatrixCommandContext context)
         {
             return _services.MovieWorkflowFactory.CreateNotificationWorkflow(new MatrixMovieUserInterface(context), _settings.NotificationMode, _settings.AutomaticallyNotifyRequesters);
+        }
+
+        public MusicRequestingWorkflow CreateMusicWorkflow(MatrixCommandContext context, int categoryId)
+        {
+            return _services.MusicWorkflowFactory.CreateRequestingWorkflow(
+                new MusicUserRequester(context.UserId, context.DisplayName),
+                categoryId,
+                new MatrixMusicUserInterface(context),
+                _settings.NotificationMode,
+                _settings.AutomaticallyNotifyRequesters);
+        }
+
+        public IMusicNotificationWorkflow CreateMusicNotificationWorkflow(MatrixCommandContext context)
+        {
+            return _services.MusicWorkflowFactory.CreateNotificationWorkflow(new MatrixMusicUserInterface(context), _settings.NotificationMode, _settings.AutomaticallyNotifyRequesters);
         }
 
         public IMovieSearcher GetMovieSearcher()

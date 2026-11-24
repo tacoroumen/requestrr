@@ -609,6 +609,18 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
         [JsonProperty("Matrix.Command.Movie.Notification.Request")]
         public string MatrixCommandMovieNotificationRequest { get; set; } = "This movie has already been requested. Do you want a notification when it becomes available?";
 
+        [JsonProperty("Matrix.Command.Music.Search")]
+        public string MatrixCommandMusicSearch { get; set; } = "I found these artists:";
+
+        [JsonProperty("Matrix.Command.Music.Request.Confirm")]
+        public string MatrixCommandMusicRequestConfirm { get; set; } = "Do you want to request music from this artist?";
+
+        [JsonProperty("Matrix.Command.Music.Notification.Request")]
+        public string MatrixCommandMusicNotificationRequest { get; set; } = "This artist has already been requested. Do you want a notification when the music becomes available?";
+
+        [JsonProperty("Matrix.Encryption.RoomNotSupported")]
+        public string MatrixEncryptionRoomNotSupported { get; set; } = "Hi! You invited me to **[Room]**, but that room uses end-to-end encryption, which I do not support yet. Matrix cannot turn encryption off in an existing room, so please create a new room with encryption turned off and invite me there.";
+
         [JsonProperty("Matrix.Command.Tv.Search")]
         public string MatrixCommandTvSearch { get; set; } = "I found these tv shows:";
 

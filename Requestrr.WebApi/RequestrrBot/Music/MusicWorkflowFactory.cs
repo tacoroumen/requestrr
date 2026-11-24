@@ -48,6 +48,34 @@ namespace Requestrr.WebApi.RequestrrBot.Music
 
 
 
+        public MusicRequestingWorkflow CreateRequestingWorkflow(MusicUserRequester user, int categoryId, IMusicUserInterface userInterface, string notificationMode, bool automaticallyNotifyRequesters)
+        {
+            DiscordSettings settings = _settingsProvider.Provide();
+            return new MusicRequestingWorkflow(
+                user,
+                categoryId,
+                GetMusicClient<IMusicSearcher>(settings),
+                GetMusicClient<IMusicRequester>(settings),
+                userInterface,
+                CreateNotificationWorkflow(userInterface, notificationMode, automaticallyNotifyRequesters));
+        }
+
+        public IMusicNotificationWorkflow CreateNotificationWorkflow(IMusicUserInterface userInterface, string notificationMode, bool automaticallyNotifyRequesters)
+        {
+            DiscordSettings settings = _settingsProvider.Provide();
+
+            if (notificationMode == NotificationMode.Disabled)
+                return new DisabledMusicNotificationWorkflow(userInterface);
+
+            return new MusicNotificationWorkflow(_notificationsRepository, userInterface, GetMusicClient<IMusicSearcher>(settings), automaticallyNotifyRequesters);
+        }
+
+        public MusicNotificationEngine CreateMusicNotificationEngine(IMusicNotifier musicNotifier, ILogger logger)
+        {
+            DiscordSettings settings = _settingsProvider.Provide();
+            return new MusicNotificationEngine(GetMusicClient<IMusicSearcher>(settings), musicNotifier, logger, _notificationsRepository);
+        }
+
         public IMusicNotificationWorkflow CreateNotificationWorkflow(DiscordInteraction interaction)
         {
             DiscordSettings settings = _settingsProvider.Provide();

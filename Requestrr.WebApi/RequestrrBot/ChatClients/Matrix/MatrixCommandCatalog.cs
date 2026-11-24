@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Requestrr.WebApi.RequestrrBot.ChatClients.Discord;
 using Requestrr.WebApi.RequestrrBot.DownloadClients;
+using Requestrr.WebApi.RequestrrBot.DownloadClients.Lidarr;
 using Requestrr.WebApi.RequestrrBot.DownloadClients.Overseerr;
 using Requestrr.WebApi.RequestrrBot.DownloadClients.Radarr;
 using Requestrr.WebApi.RequestrrBot.DownloadClients.Sonarr;
@@ -18,6 +19,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         TvShowByTvdbId,
         MovieIssue,
         TvShowIssue,
+        MusicArtist,
     }
 
     public class MatrixCommand
@@ -36,6 +38,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 MatrixCommandKind.TvShowByTvdbId => "<tvdb id>",
                 MatrixCommandKind.MovieIssue => "<movie title>",
                 MatrixCommandKind.TvShowIssue => "<tv show title>",
+                MatrixCommandKind.MusicArtist => "<artist name>",
                 _ => string.Empty,
             };
 
@@ -54,7 +57,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
 
         public IReadOnlyCollection<MatrixCommand> Commands => _commands.Values;
 
-        public static MatrixCommandCatalog Build(DiscordSettings downloadSettings, RadarrSettings radarr, SonarrSettings sonarr, OverseerrSettings overseerr, bool movieIssues = false, bool tvShowIssues = false)
+        public static MatrixCommandCatalog Build(DiscordSettings downloadSettings, RadarrSettings radarr, SonarrSettings sonarr, OverseerrSettings overseerr, LidarrSettings lidarr = null, bool movieIssues = false, bool tvShowIssues = false)
         {
             var catalog = new MatrixCommandCatalog();
 
@@ -88,6 +91,12 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             {
                 catalog.Add(Language.Current.DiscordCommandTvRequestTitleName, MatrixCommandKind.TvShowByTitle, DefaultCategoryId);
                 catalog.Add(Language.Current.DiscordCommandTvRequestTvdbName, MatrixCommandKind.TvShowByTvdbId, DefaultCategoryId);
+            }
+
+            if (downloadSettings.MusicDownloadClient == DownloadClient.Lidarr && lidarr != null)
+            {
+                foreach (var category in lidarr.Categories)
+                    catalog.Add(category.Name, MatrixCommandKind.MusicArtist, category.Id);
             }
 
             if (movieIssues)

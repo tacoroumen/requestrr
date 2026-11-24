@@ -9,6 +9,8 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Requestrr.WebApi.RequestrrBot.Locale;
 using Requestrr.WebApi.RequestrrBot.Movies;
+using Requestrr.WebApi.RequestrrBot.Music;
+using Requestrr.WebApi.RequestrrBot.Notifications.Music;
 using Requestrr.WebApi.RequestrrBot.Notifications;
 using Requestrr.WebApi.RequestrrBot.Notifications.Movies;
 using Requestrr.WebApi.RequestrrBot.Notifications.TvShows;
@@ -20,7 +22,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
     /// Tells Matrix users that their movie or tv show is available, either in configured rooms
     /// (mentioning requesters who are members) or in a direct-message room per user.
     /// </summary>
-    public class MatrixNotifier : IMovieNotifier, ITvShowNotifier
+    public class MatrixNotifier : IMovieNotifier, ITvShowNotifier, IMusicNotifier
     {
         private const string DirectRoomsFileName = "matrix_direct_rooms.json";
         private static readonly object FileLock = new object();
@@ -61,6 +63,16 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 (perSeason ? Language.Current.DiscordNotificationTvChannelSeason : Language.Current.DiscordNotificationTvChannelFirstEpisode).ReplaceTokens(tvShow, seasonNumber),
                 (perSeason ? Language.Current.DiscordNotificationTvDMSeason : Language.Current.DiscordNotificationTvDMFirstEpisode).ReplaceTokens(tvShow, seasonNumber),
                 tvShow.Banner,
+                token);
+        }
+
+        public Task<HashSet<string>> NotifyArtistAsync(IReadOnlyCollection<string> userIds, MusicArtist musicArtist, CancellationToken token)
+        {
+            return NotifyUsersAsync(
+                userIds,
+                Language.Current.DiscordNotificationMusicArtistChannel.ReplaceTokens(musicArtist),
+                Language.Current.DiscordNotificationMusicArtistDM.ReplaceTokens(musicArtist),
+                musicArtist.PosterPath != null && musicArtist.PosterPath.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? musicArtist.PosterPath : null,
                 token);
         }
 

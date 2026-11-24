@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using Requestrr.WebApi.RequestrrBot.Movies;
+using Requestrr.WebApi.RequestrrBot.Music;
 using Requestrr.WebApi.RequestrrBot.TvShows;
 
 namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
@@ -15,6 +16,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         IMovieSearcher GetMovieSearcher();
         TvShowRequestingWorkflow CreateTvShowWorkflow(MatrixCommandContext context, int categoryId);
         ITvShowNotificationWorkflow CreateTvShowNotificationWorkflow(MatrixCommandContext context);
+        MusicRequestingWorkflow CreateMusicWorkflow(MatrixCommandContext context, int categoryId);
+        IMusicNotificationWorkflow CreateMusicNotificationWorkflow(MatrixCommandContext context);
 
         /// <summary>
         /// Remembers a "pending approval" message so it can be edited once the request is approved or declined.
