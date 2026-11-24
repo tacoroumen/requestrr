@@ -375,8 +375,9 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Overseerr
                 int interalMediaId = movies.MediaInfo.Id;
 
                 var overseerrUser = await FindLinkedOverseerUserDisplayNameAsync(request.User.UserId, request.User.Username);
+                var reporterId = await FindLinkedOverseerUserAsync(request.User.UserId, request.User.Username, null);
 
-                response = await HttpPostAsync(null, $"{BaseURL}issue", JsonConvert.SerializeObject(new
+                response = await HttpPostAsync(reporterId, $"{BaseURL}issue", JsonConvert.SerializeObject(new
                 {
                     issueType = int.Parse(issueValue),
                     message = $"{issueDescription}\n\n{Language.Current.DiscordCommandIssueCreatedBy.ReplaceTokens(LanguageTokens.IssueUsername, overseerrUser)}",
@@ -656,8 +657,9 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Overseerr
                 int interalMediaId = tvShows.MediaInfo.Id;
 
                 var overseerrUser = await FindLinkedOverseerUserDisplayNameAsync(request.User.UserId, request.User.Username);
+                var reporterId = await FindLinkedOverseerUserAsync(request.User.UserId, request.User.Username, null);
 
-                response = await HttpPostAsync(null, $"{BaseURL}issue", JsonConvert.SerializeObject(new
+                response = await HttpPostAsync(reporterId, $"{BaseURL}issue", JsonConvert.SerializeObject(new
                 {
                     issueType = int.Parse(issueValue),
                     message = $"{issueDescription}\n\n{Language.Current.DiscordCommandIssueCreatedBy.ReplaceTokens(LanguageTokens.IssueUsername, overseerrUser)}",
