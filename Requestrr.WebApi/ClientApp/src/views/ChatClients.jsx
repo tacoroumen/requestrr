@@ -492,9 +492,6 @@ function ChatClients(props) {
                             placeholder="https://matrix.example.org"
                             type="text"
                           />
-                          <small className="form-text text-muted">
-                            The address your Matrix app (Element) connects to, usually https://matrix.your-domain. Requestrr must reach it from where it runs.
-                          </small>
                           {
                             matrixHomeserverUrlInvalid ? (
                                 <Alert className="mt-3" color="warning">
@@ -516,9 +513,6 @@ function ChatClients(props) {
                             placeholder="Access token of the bot account"
                             type="password"
                           />
-                          <small className="form-text text-muted">
-                            Log in as the bot through the Matrix login API and copy "access_token" from the reply. Don't copy it from Element: logging out there ends that token.
-                          </small>
                           {
                             matrixAccessTokenInvalid ? (
                                 <Alert className="mt-3" color="warning">
@@ -542,9 +536,6 @@ function ChatClients(props) {
                             placeholder="!"
                             type="text"
                           />
-                          <small className="form-text text-muted">
-                            Users type this before each command, for example !movie Dune or !help.
-                          </small>
                         </FormGroup>
                       </Col>
                       <Col lg="6">
@@ -574,10 +565,8 @@ function ChatClients(props) {
                     <Row>
                       <Col md="12">
                         <p className="text-muted text-sm">
-                          Create a separate Matrix account for the bot and paste its access token here. The bot works in unencrypted rooms only,
-                          so turn encryption off when you create the room. Without monitored rooms, the bot joins any room a user on its own homeserver invites it to.
-                          When a request needs approval in Overseerr, the bot edits its "pending approval" message once the request is approved or declined,
-                          and tells the requester when the movie or show is available. It checks every minute for movies and approvals, and every five minutes for TV shows.
+                          Create a separate Matrix account for the bot and paste its access token here. The bot works in unencrypted rooms only.
+                          Without monitored rooms, the bot joins rooms when a user on its own homeserver invites it.
                         </p>
                       </Col>
                     </Row>
