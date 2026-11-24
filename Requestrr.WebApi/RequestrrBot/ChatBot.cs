@@ -157,10 +157,30 @@ namespace Requestrr.WebApi.RequestrrBot
                         await RestartDiscordClientAsync("Discord bot heartbeat has been stopped. Restarting the Discord client.");
                     }
 
+                    // Edit "pending approval" messages once Overseerr approves or declines the request, even when it happens outside Discord.
+                    if (_client != null && _currentSettings != null && DateTime.UtcNow - _lastOverseerrApprovalSyncUtc >= OverseerrApprovalSyncInterval)
+                    {
+                        _lastOverseerrApprovalSyncUtc = DateTime.UtcNow;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await SyncPendingOverseerrApprovalsAsync();
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Error while syncing Overseerr approvals: " + ex.Message);
+                            }
+                        });
+                    }
+
                     await Task.Delay(5000);
                 }
             });
         }
+
+        private static readonly TimeSpan OverseerrApprovalSyncInterval = TimeSpan.FromMinutes(1);
+        private DateTime _lastOverseerrApprovalSyncUtc = DateTime.MinValue;
 
         private static readonly TimeSpan DiscordShutdownTimeout = TimeSpan.FromSeconds(30);
         private static readonly TimeSpan DiscordConnectTimeout = TimeSpan.FromMinutes(2);
