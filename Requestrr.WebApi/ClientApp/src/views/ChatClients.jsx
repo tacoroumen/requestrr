@@ -19,7 +19,7 @@ import {useEffect, useState} from "react";
 import {Oval} from 'react-loader-spinner'
 import {useDispatch} from 'react-redux';
 import {Alert} from "reactstrap";
-import {testSettings, testMatrixSettings} from "../store/actions/ChatClientsActions"
+import {testSettings, testMatrixSettings, getOverseerrUsers} from "../store/actions/ChatClientsActions"
 import {getSettings} from "../store/actions/ChatClientsActions"
 import {save} from "../store/actions/ChatClientsActions"
 import MultiDropdown from "../components/Inputs/MultiDropdown"
@@ -94,6 +94,9 @@ function ChatClients(props) {
   const [matrixNotificationMode, setMatrixNotificationMode] = useState("PrivateMessages");
   const [matrixNotificationRooms, setMatrixNotificationRooms] = useState([]);
   const [matrixAutomaticallyNotifyRequesters, setMatrixAutomaticallyNotifyRequesters] = useState(true);
+  const [matrixUserLinks, setMatrixUserLinks] = useState([]);
+  const [overseerrUsers, setOverseerrUsers] = useState([]);
+  const [overseerrUsersError, setOverseerrUsersError] = useState("");
   const [matrixHomeserverUrlInvalid, setMatrixHomeserverUrlInvalid] = useState(false);
   const [isTestingMatrix, setIsTestingMatrix] = useState(false);
   const [matrixTestRequested, setMatrixTestRequested] = useState(false);
@@ -137,10 +140,32 @@ function ChatClients(props) {
         setMatrixNotificationMode(matrix.notificationMode || "PrivateMessages");
         setMatrixNotificationRooms(matrix.notificationRooms || []);
         setMatrixAutomaticallyNotifyRequesters(matrix.automaticallyNotifyRequesters !== false);
+        setMatrixUserLinks((matrix.userLinks || []).map(x => ({matrixUserId: x.matrixUserId || "", overseerrUserId: x.overseerrUserId || ""})));
         setLanguage(data.payload.language);
         setAvailableLanguages(data.payload.availableLanguages);
       });
   }, []);
+
+  useEffect(() => {
+    if (!matrixEnabled) {
+      return;
+    }
+
+    dispatch(getOverseerrUsers())
+      .then(data => {
+        if (data.ok) {
+          setOverseerrUsers(data.users);
+          setOverseerrUsersError("");
+        } else {
+          setOverseerrUsers([]);
+          setOverseerrUsersError(data.error);
+        }
+      });
+  }, [matrixEnabled]);
+
+  const updateMatrixUserLink = (index, field, value) => {
+    setMatrixUserLinks(matrixUserLinks.map((link, i) => i === index ? {...link, [field]: value} : link));
+  };
 
 
   useEffect(() => {
@@ -301,6 +326,9 @@ function ChatClients(props) {
             notificationMode: matrixNotificationMode,
             notificationRooms: matrixNotificationRooms,
             automaticallyNotifyRequesters: matrixAutomaticallyNotifyRequesters,
+            userLinks: matrixUserLinks
+              .filter(x => x.matrixUserId.trim() !== "")
+              .map(x => ({matrixUserId: x.matrixUserId.trim(), overseerrUserId: x.overseerrUserId})),
           },
           language: language,
         }))
@@ -671,6 +699,65 @@ function ChatClients(props) {
                         </Row>
                         : null
                     }
+                  </div>
+                  <hr className="my-4"/>
+                  <h6 className="heading-small text-muted mb-4">
+                    Matrix users linked to Seerr
+                  </h6>
+                  <div className="pl-lg-4">
+                    <p className="text-muted text-sm">
+                      Requests from a linked Matrix user are made as their Seerr user, so they show up under that person in Seerr and follow their permissions.
+                      Unlinked users request as the default Seerr user set under Download Clients.
+                    </p>
+                    {
+                      overseerrUsersError ? (
+                        <Alert className="mt-3" color="warning">
+                          <strong>{overseerrUsersError}</strong>
+                        </Alert>)
+                        : null
+                    }
+                    {
+                      matrixUserLinks.map((link, index) => (
+                        <Row key={index} className="align-items-center mb-2">
+                          <Col lg="5">
+                            <Input
+                              className="form-control-alternative"
+                              placeholder="@name:your-domain"
+                              type="text"
+                              value={link.matrixUserId}
+                              onChange={e => updateMatrixUserLink(index, "matrixUserId", e.target.value)}
+                            />
+                          </Col>
+                          <Col lg="5">
+                            <Input
+                              className="form-control-alternative"
+                              type="select"
+                              value={link.overseerrUserId}
+                              onChange={e => updateMatrixUserLink(index, "overseerrUserId", e.target.value)}>
+                              <option value="">Choose a Seerr user</option>
+                              {
+                                overseerrUsers.map(user => <option key={user.id} value={user.id}>{user.name}</option>)
+                              }
+                              {
+                                link.overseerrUserId && !overseerrUsers.some(user => user.id === link.overseerrUserId)
+                                  ? <option value={link.overseerrUserId}>{`Seerr user ${link.overseerrUserId}`}</option>
+                                  : null
+                              }
+                            </Input>
+                          </Col>
+                          <Col lg="2">
+                            <button className="btn btn-sm btn-outline-danger" type="button"
+                                    onClick={() => setMatrixUserLinks(matrixUserLinks.filter((_, i) => i !== index))}>
+                              Remove
+                            </button>
+                          </Col>
+                        </Row>
+                      ))
+                    }
+                    <button className="btn btn-sm btn-outline-primary mt-2" type="button"
+                            onClick={() => setMatrixUserLinks([...matrixUserLinks, {matrixUserId: "", overseerrUserId: ""}])}>
+                      Link a Matrix user
+                    </button>
                   </div>
                     </>
                   ) : null}

@@ -47,6 +47,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                     AutomaticallyNotifyRequesters = matrix.AutomaticallyNotifyRequesters,
                     NotificationMode = matrix.NotificationMode,
                     NotificationRooms = matrix.NotificationRooms,
+                    UserLinks = matrix.UserLinks,
                 },
                 Language = settings.ChatClients.Language,
             };

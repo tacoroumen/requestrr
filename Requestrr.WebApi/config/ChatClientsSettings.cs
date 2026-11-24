@@ -16,6 +16,17 @@ namespace Requestrr.WebApi.config
         public bool AutomaticallyNotifyRequesters { get; set; } = true;
         public string NotificationMode { get; set; } = "PrivateMessages";
         public string[] NotificationRooms { get; set; } = System.Array.Empty<string>();
+        public MatrixUserLink[] UserLinks { get; set; } = System.Array.Empty<MatrixUserLink>();
+    }
+
+    /// <summary>
+    /// Links a Matrix user to an Overseerr/Seerr user, so their requests are made as that user.
+    /// Seerr stores Discord IDs per user but has no Matrix field, so the admin keeps this list in Requestrr.
+    /// </summary>
+    public class MatrixUserLink
+    {
+        public string MatrixUserId { get; set; }
+        public string OverseerrUserId { get; set; }
     }
 
     public class DiscordSettings

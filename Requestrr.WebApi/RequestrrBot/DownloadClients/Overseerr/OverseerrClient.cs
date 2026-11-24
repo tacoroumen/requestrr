@@ -926,8 +926,67 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Overseerr
 
 
 
+        /// <summary>
+        /// Lists the Overseerr/Seerr users, for linking chat users to them in the web UI.
+        /// </summary>
+        public async Task<IReadOnlyList<(int Id, string DisplayName)>> GetUsersAsync()
+        {
+            var response = await HttpGetAsync($"{BaseURL}user?take={int.MaxValue}&skip=0&sort=displayname");
+            var jsonResponse = await response.Content.ReadAsStringAsync();
+            await response.ThrowIfNotSuccessfulAsync("OverseerrFindAllUsers failed", x => x.error);
+
+            return (JsonConvert.DeserializeObject<JSONAllUserQuery>(jsonResponse).Results ?? new List<JSONUserResult>())
+                .Select(x => (x.ID, x.DisplayName))
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Seerr has no Matrix ID field, so Matrix users are linked through the list in the Requestrr Matrix settings instead of a Seerr lookup.
+        /// </summary>
+        private async Task<bool> FindLinkedMatrixUserAsync(string userId)
+        {
+            var link = new ChatClients.Matrix.MatrixSettingsProvider().Provide().UserLinks
+                .FirstOrDefault(x => string.Equals(x.MatrixUserId, userId, StringComparison.OrdinalIgnoreCase));
+
+            if (link == null || !int.TryParse(link.OverseerrUserId, out var overseerrUserId))
+            {
+                _requesterIdToOverseerUserID.Remove(userId, out _);
+                _requesterIdToOverseerDisplayName.Remove(userId, out _);
+                return false;
+            }
+
+            if (_requesterIdToOverseerUserID.TryGetValue(userId, out var cachedId) && cachedId == overseerrUserId && _requesterIdToOverseerDisplayName.ContainsKey(userId))
+            {
+                return true;
+            }
+
+            var displayName = userId;
+
+            try
+            {
+                var response = await HttpGetAsync($"{BaseURL}user/{overseerrUserId}");
+                if (response.IsSuccessStatusCode)
+                {
+                    displayName = JsonConvert.DeserializeObject<JSONUserResult>(await response.Content.ReadAsStringAsync())?.DisplayName ?? userId;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Could not read Overseerr user {overseerrUserId}: {ex.Message}");
+            }
+
+            _requesterIdToOverseerUserID[userId] = overseerrUserId;
+            _requesterIdToOverseerDisplayName[userId] = displayName;
+            return true;
+        }
+
         private async Task<bool> FindLinkedOverseerUserAsync(string userId)
         {
+            if (ChatClients.Matrix.MatrixIds.IsUserId(userId))
+            {
+                return await FindLinkedMatrixUserAsync(userId);
+            }
+
             if (_requesterIdToOverseerUserID.TryGetValue(userId, out var overseerrUserID))
             {
                 var notificationSettings = await GetUserNotificationSettings(overseerrUserID);

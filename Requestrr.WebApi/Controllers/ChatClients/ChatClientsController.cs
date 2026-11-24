@@ -64,6 +64,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                     NotificationMode = _chatClientsSettings.Matrix.NotificationMode,
                     NotificationRooms = _chatClientsSettings.Matrix.NotificationRooms,
                     AutomaticallyNotifyRequesters = _chatClientsSettings.Matrix.AutomaticallyNotifyRequesters,
+                    UserLinks = _chatClientsSettings.Matrix.UserLinks ?? Array.Empty<MatrixUserLink>(),
                 },
                 Language = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(_chatClientsSettings.Language.ToLower()),
                 AvailableLanguages = GetLanguages()
@@ -134,6 +135,21 @@ namespace Requestrr.WebApi.Controllers.ChatClients
             catch (System.Exception)
             {
                 return BadRequest($"Invalid bot token");
+            }
+        }
+
+        [HttpGet("matrix/overseerr-users")]
+        public async Task<IActionResult> GetOverseerrUsersAsync([FromServices] RequestrrServices services)
+        {
+            try
+            {
+                var users = await services.OverseerrClient.GetUsersAsync();
+                return Ok(users.Select(x => new { id = x.Id.ToString(), name = string.IsNullOrWhiteSpace(x.DisplayName) ? $"User {x.Id}" : x.DisplayName }));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Could not list Overseerr users: {ex.Message}");
+                return BadRequest("Could not load the Seerr users. Set up Overseerr/Seerr under Download Clients first.");
             }
         }
 
@@ -335,6 +351,26 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 return "Add at least one Matrix room to send notifications to.";
             }
 
+            var userLinks = (matrix.UserLinks ?? Array.Empty<MatrixUserLink>())
+                .Where(x => x != null && !string.IsNullOrWhiteSpace(x.MatrixUserId))
+                .Select(x => new MatrixUserLink { MatrixUserId = x.MatrixUserId.Trim(), OverseerrUserId = (x.OverseerrUserId ?? string.Empty).Trim() })
+                .ToArray();
+
+            if (userLinks.Any(x => !Requestrr.WebApi.RequestrrBot.ChatClients.Matrix.MatrixIds.IsUserId(x.MatrixUserId)))
+            {
+                return "Enter Matrix users as full user IDs, like @name:example.org.";
+            }
+
+            if (userLinks.Any(x => !int.TryParse(x.OverseerrUserId, out _)))
+            {
+                return "Pick a Seerr user for every linked Matrix user.";
+            }
+
+            if (userLinks.GroupBy(x => x.MatrixUserId, StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1))
+            {
+                return "Each Matrix user can be linked to one Seerr user only.";
+            }
+
             var prefix = string.IsNullOrWhiteSpace(matrix.CommandPrefix) ? "!" : matrix.CommandPrefix.Trim();
 
             if (prefix.Length > 5 || prefix.Any(char.IsWhiteSpace))
@@ -351,6 +387,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 NotificationMode = notificationMode,
                 NotificationRooms = notificationRooms,
                 AutomaticallyNotifyRequesters = matrix.AutomaticallyNotifyRequesters,
+                UserLinks = userLinks,
             };
 
             return null;

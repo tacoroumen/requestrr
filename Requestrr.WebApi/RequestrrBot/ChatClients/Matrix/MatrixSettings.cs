@@ -14,6 +14,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         public bool AutomaticallyNotifyRequesters { get; set; } = true;
         public string NotificationMode { get; set; } = Notifications.NotificationMode.PrivateMessage;
         public string[] NotificationRooms { get; set; } = Array.Empty<string>();
+        public config.MatrixUserLink[] UserLinks { get; set; } = Array.Empty<config.MatrixUserLink>();
 
         public bool IsConfigured => !string.IsNullOrWhiteSpace(HomeserverUrl) && !string.IsNullOrWhiteSpace(AccessToken);
 
@@ -56,6 +57,9 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 AutomaticallyNotifyRequesters = (bool?)matrix["AutomaticallyNotifyRequesters"] ?? true,
                 NotificationMode = (string)matrix["NotificationMode"] ?? Notifications.NotificationMode.PrivateMessage,
                 NotificationRooms = ReadArray(matrix["NotificationRooms"]),
+                UserLinks = (matrix["UserLinks"]?.ToObject<config.MatrixUserLink[]>() ?? Array.Empty<config.MatrixUserLink>())
+                    .Where(x => !string.IsNullOrWhiteSpace(x?.MatrixUserId) && !string.IsNullOrWhiteSpace(x.OverseerrUserId))
+                    .ToArray(),
             };
         }
 
