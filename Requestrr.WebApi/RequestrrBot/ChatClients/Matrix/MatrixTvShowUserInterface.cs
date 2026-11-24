@@ -89,12 +89,13 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             await EndWithAsync(message);
         }
 
-        public Task DisplayRequestDeniedForSeasonAsync(TvShow tvShow, TvSeason selectedSeason)
+        public async Task DisplayRequestDeniedForSeasonAsync(TvShow tvShow, TvSeason selectedSeason)
         {
-            return EndWithAsync(Language.Current.DiscordCommandTvRequestDenied);
+            await EndWithAsync(Language.Current.DiscordCommandTvRequestDenied);
+            await _context.Workflows.PostRequestSummaryAsync(_context, BuildDetails(tvShow), Language.Current.DiscordCommandRequestDenied);
         }
 
-        public Task DisplayRequestSuccessForSeasonAsync(TvShow tvShow, TvSeason requestedSeason)
+        public async Task DisplayRequestSuccessForSeasonAsync(TvShow tvShow, TvSeason requestedSeason)
         {
             var message = requestedSeason is AllTvSeasons
                 ? Language.Current.DiscordCommandTvRequestSuccessAllSeasons.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
@@ -102,7 +103,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                     ? Language.Current.DiscordCommandTvRequestSuccessFutureSeasons.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
                     : Language.Current.DiscordCommandTvRequestSuccessSeason.ReplaceTokens(tvShow, requestedSeason.SeasonNumber);
 
-            return EndWithAsync(message);
+            await EndWithAsync(message);
+            await _context.Workflows.PostRequestSummaryAsync(_context, BuildDetails(tvShow), Language.Current.DiscordCommandRequestApproved);
         }
 
         public async Task DisplayRequestPendingForSeasonAsync(TvShow tvShow, TvSeason requestedSeason, int requestId)

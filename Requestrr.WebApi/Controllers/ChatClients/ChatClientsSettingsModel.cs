@@ -70,6 +70,8 @@ namespace Requestrr.WebApi.Controllers.ChatClients
 
         public int? ApprovalPowerLevel { get; set; }
 
+        public bool ApprovalRoomsAllRequests { get; set; }
+
         public int[] MovieRequestLevels { get; set; }
 
         public int[] TvShowRequestLevels { get; set; }

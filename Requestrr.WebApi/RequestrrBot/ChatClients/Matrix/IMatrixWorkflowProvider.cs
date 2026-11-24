@@ -24,6 +24,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         /// </summary>
         /// Also posts the request to the approval rooms, where moderators can approve or deny it with a reaction.
         /// </summary>
+        Task PostRequestSummaryAsync(MatrixCommandContext context, MatrixMessage details, string status);
         Task TrackPendingRequestAsync(MatrixCommandContext context, int requestId, string eventId, string title, MatrixMessage details);
     }
 }

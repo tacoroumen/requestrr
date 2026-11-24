@@ -49,6 +49,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                     NotificationRooms = matrix.NotificationRooms,
                     ApprovalRooms = matrix.ApprovalRooms,
                     ApprovalPowerLevel = matrix.ApprovalPowerLevel,
+                    ApprovalRoomsAllRequests = matrix.ApprovalRoomsAllRequests,
                     MovieRequestLevels = matrix.MovieRequestLevels,
                     TvShowRequestLevels = matrix.TvShowRequestLevels,
                     MusicRequestLevels = matrix.MusicRequestLevels,

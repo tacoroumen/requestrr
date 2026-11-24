@@ -100,12 +100,14 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         {
             _context.EndConversation();
             await _context.SendAsync(Language.Current.DiscordCommandMovieRequestDenied);
+            await _context.Workflows.PostRequestSummaryAsync(_context, await BuildDetailsAsync(movie), Language.Current.DiscordCommandRequestDenied);
         }
 
         public async Task DisplayRequestSuccessAsync(Movie movie)
         {
             _context.EndConversation();
             await _context.SendAsync(Language.Current.DiscordCommandMovieRequestSuccess.ReplaceTokens(movie));
+            await _context.Workflows.PostRequestSummaryAsync(_context, await BuildDetailsAsync(movie), Language.Current.DiscordCommandRequestApproved);
         }
 
         public async Task DisplayRequestPendingAsync(Movie movie, int requestId)

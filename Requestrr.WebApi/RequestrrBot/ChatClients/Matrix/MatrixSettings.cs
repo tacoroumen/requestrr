@@ -19,6 +19,9 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         /// <summary>Room power level that lets people who are not linked to a Seerr user approve requests (50 is moderator).</summary>
         public int ApprovalPowerLevel { get; set; } = 50;
 
+        /// <summary>Also post requests that went through or were denied right away to the approval rooms, like the Discord admin channel option.</summary>
+        public bool ApprovalRoomsAllRequests { get; set; }
+
         /// <summary>
         /// Exact room power levels (below 50) that may request each category. Empty means everyone may request it.
         /// Power level 50 and higher may always request everything.
@@ -73,6 +76,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 NotificationRooms = ReadArray(matrix["NotificationRooms"]),
                 ApprovalRooms = ReadArray(matrix["ApprovalRooms"]),
                 ApprovalPowerLevel = (int?)matrix["ApprovalPowerLevel"] ?? 50,
+                ApprovalRoomsAllRequests = (bool?)matrix["ApprovalRoomsAllRequests"] ?? false,
                 MovieRequestLevels = ReadLevels(matrix["MovieRequestLevels"]),
                 TvShowRequestLevels = ReadLevels(matrix["TvShowRequestLevels"]),
                 MusicRequestLevels = ReadLevels(matrix["MusicRequestLevels"]),

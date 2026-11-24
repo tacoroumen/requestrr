@@ -96,6 +96,7 @@ function ChatClients(props) {
   const [matrixAutomaticallyNotifyRequesters, setMatrixAutomaticallyNotifyRequesters] = useState(true);
   const [matrixApprovalRooms, setMatrixApprovalRooms] = useState([]);
   const [matrixApprovalPowerLevel, setMatrixApprovalPowerLevel] = useState("50");
+  const [matrixApprovalRoomsAllRequests, setMatrixApprovalRoomsAllRequests] = useState(false);
   const [matrixMovieRequestLevels, setMatrixMovieRequestLevels] = useState([]);
   const [matrixTvShowRequestLevels, setMatrixTvShowRequestLevels] = useState([]);
   const [matrixMusicRequestLevels, setMatrixMusicRequestLevels] = useState([]);
@@ -144,6 +145,7 @@ function ChatClients(props) {
         setMatrixAutomaticallyNotifyRequesters(matrix.automaticallyNotifyRequesters !== false);
         setMatrixApprovalRooms(matrix.approvalRooms || []);
         setMatrixApprovalPowerLevel(String(matrix.approvalPowerLevel ?? 50));
+        setMatrixApprovalRoomsAllRequests(matrix.approvalRoomsAllRequests || false);
         setMatrixMovieRequestLevels(matrix.movieRequestLevels || []);
         setMatrixTvShowRequestLevels(matrix.tvShowRequestLevels || []);
         setMatrixMusicRequestLevels(matrix.musicRequestLevels || []);
@@ -316,6 +318,7 @@ function ChatClients(props) {
             tvShowRequestLevels: matrixTvShowRequestLevels,
             musicRequestLevels: matrixMusicRequestLevels,
             approvalPowerLevel: /^\d+$/.test(matrixApprovalPowerLevel.trim()) ? Number(matrixApprovalPowerLevel.trim()) : 50,
+            approvalRoomsAllRequests: matrixApprovalRoomsAllRequests,
           },
           language: language,
         }))
@@ -798,6 +801,22 @@ function ChatClients(props) {
                           People linked to a Seerr user on the Users page can approve when that Seerr user is an admin or has Manage Requests.
                           Unlinked people need this power level in the room: 50 is moderator, 100 is admin.
                         </p>
+                      </Col>
+                    </Row>
+                    <Row>
+                      <Col md="12">
+                        <FormGroup className="custom-control custom-control-alternative custom-checkbox mb-3">
+                          <Input
+                            className="custom-control-input"
+                            id="matrixApprovalRoomsAllRequests"
+                            type="checkbox"
+                            onChange={() => setMatrixApprovalRoomsAllRequests(!matrixApprovalRoomsAllRequests)}
+                            checked={matrixApprovalRoomsAllRequests}
+                          />
+                          <label className="custom-control-label" htmlFor="matrixApprovalRoomsAllRequests">
+                            <span className="text-muted">Send all movie and tv show requests to the approval room(s), not only pending ones.</span>
+                          </label>
+                        </FormGroup>
                       </Col>
                     </Row>
                   </div>

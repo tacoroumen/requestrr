@@ -1105,6 +1105,33 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             }
         }
 
+        /// <summary>
+        /// Posts a request that went through or was denied right away to the approval rooms, when that option is on.
+        /// Matches the Discord "send all requests to admin channels" option: information only, no reactions.
+        /// </summary>
+        public async Task PostRequestSummaryAsync(MatrixCommandContext context, MatrixMessage details, string status)
+        {
+            if (!_matrixSettingsProvider.Provide().ApprovalRoomsAllRequests)
+            {
+                return;
+            }
+
+            foreach (var roomId in _approvalRoomIds)
+            {
+                try
+                {
+                    var summary = Language.Current.DiscordCommandRequestAdminSummary.Replace(LanguageTokens.RequestStatus, status).Split(LanguageTokens.AuthorUsername);
+                    var message = CloneDetails(details);
+                    message.AppendMarkdown(summary[0]).AppendMention(context.UserId, context.DisplayName).AppendMarkdown(summary.Length > 1 ? summary[1] : string.Empty);
+                    await _client.SendMessageAsync(roomId, message);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"Could not post a request summary to approval room {roomId}: {ex.Message}");
+                }
+            }
+        }
+
         private static MatrixMessage CloneDetails(MatrixMessage details)
         {
             return MatrixMessage.FromParts(details);
