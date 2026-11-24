@@ -644,7 +644,47 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 return;
             }
 
+            if (!await CanRequestAsync(context, command))
+            {
+                return;
+            }
+
             await WithTypingAsync(context, () => RunCommandAsync(context, command, argument));
+        }
+
+        /// <summary>
+        /// Checks the request limits: exact power levels below 50 per category, while 50 and higher may always request.
+        /// </summary>
+        private async Task<bool> CanRequestAsync(MatrixCommandContext context, MatrixCommand command)
+        {
+            var settings = _matrixSettingsProvider.Provide();
+            var isMovie = command.Kind == MatrixCommandKind.MovieByTitle || command.Kind == MatrixCommandKind.MovieByTmdbId;
+            var levels = isMovie ? settings.MovieRequestLevels : settings.TvShowRequestLevels;
+
+            if (levels == null || !levels.Any())
+            {
+                return true;
+            }
+
+            int powerLevel;
+
+            try
+            {
+                powerLevel = await _client.GetPowerLevelAsync(context.RoomId, context.UserId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Could not read the power level of {context.UserId} in {context.RoomId}: {ex.Message}");
+                powerLevel = 0;
+            }
+
+            if (powerLevel >= MatrixSettings.AlwaysAllowedRequestLevel || levels.Contains(powerLevel))
+            {
+                return true;
+            }
+
+            await context.SendAsync(Language.Current.MatrixRequestNotAllowed.Replace("[Category]", isMovie ? "movies" : "tv shows"));
+            return false;
         }
 
         private async Task RunCommandAsync(MatrixCommandContext context, MatrixCommand command, string argument)

@@ -96,6 +96,9 @@ function ChatClients(props) {
   const [matrixAutomaticallyNotifyRequesters, setMatrixAutomaticallyNotifyRequesters] = useState(true);
   const [matrixApprovalRooms, setMatrixApprovalRooms] = useState([]);
   const [matrixApprovalPowerLevel, setMatrixApprovalPowerLevel] = useState("50");
+  const [matrixMovieRequestLevels, setMatrixMovieRequestLevels] = useState([]);
+  const [matrixTvShowRequestLevels, setMatrixTvShowRequestLevels] = useState([]);
+  const [matrixMusicRequestLevels, setMatrixMusicRequestLevels] = useState([]);
   const [matrixHomeserverUrlInvalid, setMatrixHomeserverUrlInvalid] = useState(false);
   const [isTestingMatrix, setIsTestingMatrix] = useState(false);
   const [matrixTestRequested, setMatrixTestRequested] = useState(false);
@@ -141,6 +144,9 @@ function ChatClients(props) {
         setMatrixAutomaticallyNotifyRequesters(matrix.automaticallyNotifyRequesters !== false);
         setMatrixApprovalRooms(matrix.approvalRooms || []);
         setMatrixApprovalPowerLevel(String(matrix.approvalPowerLevel ?? 50));
+        setMatrixMovieRequestLevels(matrix.movieRequestLevels || []);
+        setMatrixTvShowRequestLevels(matrix.tvShowRequestLevels || []);
+        setMatrixMusicRequestLevels(matrix.musicRequestLevels || []);
         setLanguage(data.payload.language);
         setAvailableLanguages(data.payload.availableLanguages);
       });
@@ -306,6 +312,9 @@ function ChatClients(props) {
             notificationRooms: matrixNotificationRooms,
             automaticallyNotifyRequesters: matrixAutomaticallyNotifyRequesters,
             approvalRooms: matrixApprovalRooms,
+            movieRequestLevels: matrixMovieRequestLevels,
+            tvShowRequestLevels: matrixTvShowRequestLevels,
+            musicRequestLevels: matrixMusicRequestLevels,
             approvalPowerLevel: /^\d+$/.test(matrixApprovalPowerLevel.trim()) ? Number(matrixApprovalPowerLevel.trim()) : 50,
           },
           language: language,
@@ -676,6 +685,63 @@ function ChatClients(props) {
                           </Col>
                         </Row>
                         : null
+                    }
+                  </div>
+                  <hr className="my-4"/>
+                  <h6 className="heading-small text-muted mb-4">
+                    Matrix request limits
+                  </h6>
+                  <div className="pl-lg-4">
+                    <p className="text-muted text-sm">
+                      Pick which room power levels may request each type. Use exact levels below 50, for example 20 for movies only, 30 for movies and TV, 40 for everything.
+                      Leave a type empty to let everyone request it. Power level 50 (moderator) and higher can always request everything.
+                      Set someone's level in Element under Room settings, Roles and permissions.
+                    </p>
+                    <Row>
+                      {
+                        [
+                          ["Movies", matrixMovieRequestLevels, setMatrixMovieRequestLevels],
+                          ["TV shows", matrixTvShowRequestLevels, setMatrixTvShowRequestLevels],
+                          ["Music", matrixMusicRequestLevels, setMatrixMusicRequestLevels],
+                        ].map(([label, levels, setLevels]) => (
+                          <Col lg="4" key={label}>
+                            <FormGroup>
+                              <MultiDropdown
+                                name={`${label}: allowed power levels`}
+                                create={true}
+                                searchable={true}
+                                placeholder="Everyone"
+                                labelField="name"
+                                valueField="id"
+                                dropdownHandle={false}
+                                selectedItems={levels.map(x => ({name: String(x), id: String(x)}))}
+                                items={levels.map(x => ({name: String(x), id: String(x)}))}
+                                onChange={newLevels => setLevels([...new Set(newLevels
+                                  .map(x => String(x.id).trim())
+                                  .filter(x => /^\d+$/.test(x) && Number(x) < 50)
+                                  .map(Number))].sort((a, b) => a - b))}/>
+                            </FormGroup>
+                          </Col>
+                        ))
+                      }
+                    </Row>
+                    {
+                      (() => {
+                        const all = [...new Set([...matrixMovieRequestLevels, ...matrixTvShowRequestLevels, ...matrixMusicRequestLevels])].sort((a, b) => a - b);
+                        if (!all.length) return null;
+                        const types = level => [
+                          (!matrixMovieRequestLevels.length || matrixMovieRequestLevels.includes(level)) ? "movies" : null,
+                          (!matrixTvShowRequestLevels.length || matrixTvShowRequestLevels.includes(level)) ? "TV shows" : null,
+                          (!matrixMusicRequestLevels.length || matrixMusicRequestLevels.includes(level)) ? "music" : null,
+                        ].filter(x => x).join(", ");
+                        return (
+                          <div className="text-sm mb-3">
+                            <div className="font-weight-bold mb-1">What each level can request</div>
+                            {all.map(level => <div key={level}>Level {level}: {types(level)}</div>)}
+                            <div>Level 50 and higher: everything</div>
+                            <div className="text-muted">Any other level: {types(-1) || "nothing"}</div>
+                          </div>);
+                      })()
                     }
                   </div>
                   <hr className="my-4"/>

@@ -66,6 +66,9 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                     AutomaticallyNotifyRequesters = _chatClientsSettings.Matrix.AutomaticallyNotifyRequesters,
                     ApprovalRooms = _chatClientsSettings.Matrix.ApprovalRooms ?? Array.Empty<string>(),
                     ApprovalPowerLevel = _chatClientsSettings.Matrix.ApprovalPowerLevel,
+                    MovieRequestLevels = _chatClientsSettings.Matrix.MovieRequestLevels ?? Array.Empty<int>(),
+                    TvShowRequestLevels = _chatClientsSettings.Matrix.TvShowRequestLevels ?? Array.Empty<int>(),
+                    MusicRequestLevels = _chatClientsSettings.Matrix.MusicRequestLevels ?? Array.Empty<int>(),
                 },
                 Language = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(_chatClientsSettings.Language.ToLower()),
                 AvailableLanguages = GetLanguages()
@@ -345,6 +348,11 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 return "The Matrix approval power level must be between 0 and 100.";
             }
 
+            if (new[] { matrix.MovieRequestLevels, matrix.TvShowRequestLevels, matrix.MusicRequestLevels }.Any(levels => (levels ?? Array.Empty<int>()).Any(x => x < 0 || x >= 50)))
+            {
+                return "Matrix request power levels must be between 0 and 49. Power level 50 and higher can always request everything.";
+            }
+
             var prefix = string.IsNullOrWhiteSpace(matrix.CommandPrefix) ? "!" : matrix.CommandPrefix.Trim();
 
             if (prefix.Length > 5 || prefix.Any(char.IsWhiteSpace))
@@ -363,9 +371,17 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 AutomaticallyNotifyRequesters = matrix.AutomaticallyNotifyRequesters,
                 ApprovalRooms = approvalRooms,
                 ApprovalPowerLevel = approvalPowerLevel,
+                MovieRequestLevels = CleanLevels(matrix.MovieRequestLevels),
+                TvShowRequestLevels = CleanLevels(matrix.TvShowRequestLevels),
+                MusicRequestLevels = CleanLevels(matrix.MusicRequestLevels),
             };
 
             return null;
+        }
+
+        private static int[] CleanLevels(int[] levels)
+        {
+            return (levels ?? Array.Empty<int>()).Distinct().OrderBy(x => x).ToArray();
         }
 
         private static string[] CleanIds(string[] ids)

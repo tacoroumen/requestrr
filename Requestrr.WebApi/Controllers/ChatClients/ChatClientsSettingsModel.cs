@@ -69,6 +69,12 @@ namespace Requestrr.WebApi.Controllers.ChatClients
         public string[] ApprovalRooms { get; set; }
 
         public int? ApprovalPowerLevel { get; set; }
+
+        public int[] MovieRequestLevels { get; set; }
+
+        public int[] TvShowRequestLevels { get; set; }
+
+        public int[] MusicRequestLevels { get; set; }
     }
 
     public class MatrixTestSettingsModel

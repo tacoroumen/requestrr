@@ -556,7 +556,10 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
         public string MatrixApprovalDeclined { get; set; } = "**[Title]** requested by [Requester]: denied by [DecidedBy].";
 
         [JsonProperty("Matrix.Approval.NotAllowed")]
-        public string MatrixApprovalNotAllowed { get; set; } = "Only moderators of this room can approve or deny requests.";
+        public string MatrixApprovalNotAllowed { get; set; } = "You are not allowed to approve or deny requests. Ask a Seerr admin to give your Seerr account the Manage Requests permission.";
+
+        [JsonProperty("Matrix.Request.NotAllowed")]
+        public string MatrixRequestNotAllowed { get; set; } = "You are not allowed to request [Category] here. Ask a room admin for access.";
 
         [JsonProperty("Matrix.UnknownCommand")]
         public string MatrixUnknownCommand { get; set; } = "I don't know `[Command]`. Available commands: [CommandList]. Send `[HelpCommand]` for details.";

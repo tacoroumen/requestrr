@@ -19,6 +19,16 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         /// <summary>Room power level that lets people who are not linked to a Seerr user approve requests (50 is moderator).</summary>
         public int ApprovalPowerLevel { get; set; } = 50;
 
+        /// <summary>
+        /// Exact room power levels (below 50) that may request each category. Empty means everyone may request it.
+        /// Power level 50 and higher may always request everything.
+        /// </summary>
+        public int[] MovieRequestLevels { get; set; } = Array.Empty<int>();
+        public int[] TvShowRequestLevels { get; set; } = Array.Empty<int>();
+        public int[] MusicRequestLevels { get; set; } = Array.Empty<int>();
+
+        public const int AlwaysAllowedRequestLevel = 50;
+
         public bool IsConfigured => !string.IsNullOrWhiteSpace(HomeserverUrl) && !string.IsNullOrWhiteSpace(AccessToken);
 
         public override bool Equals(object obj)
@@ -63,7 +73,15 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 NotificationRooms = ReadArray(matrix["NotificationRooms"]),
                 ApprovalRooms = ReadArray(matrix["ApprovalRooms"]),
                 ApprovalPowerLevel = (int?)matrix["ApprovalPowerLevel"] ?? 50,
+                MovieRequestLevels = ReadLevels(matrix["MovieRequestLevels"]),
+                TvShowRequestLevels = ReadLevels(matrix["TvShowRequestLevels"]),
+                MusicRequestLevels = ReadLevels(matrix["MusicRequestLevels"]),
             };
+        }
+
+        private static int[] ReadLevels(JToken token)
+        {
+            return (token?.ToObject<int[]>() ?? Array.Empty<int>()).Distinct().OrderBy(x => x).ToArray();
         }
 
         private static string[] ReadArray(JToken token)
