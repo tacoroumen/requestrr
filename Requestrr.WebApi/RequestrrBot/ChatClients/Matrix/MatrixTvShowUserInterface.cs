@@ -226,6 +226,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         {
             var year = !string.IsNullOrWhiteSpace(tvShow.FirstAired) && tvShow.FirstAired.Length >= 4 ? $" ({tvShow.FirstAired.Substring(0, 4)})" : string.Empty;
             var message = new MatrixMessage().AppendHeading(tvShow.Title + year);
+            message.ImageUrl = tvShow.Banner;
 
             if (!string.IsNullOrWhiteSpace(tvShow.Overview))
             {

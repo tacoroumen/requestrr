@@ -24,6 +24,11 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         public string ReplyToEventId { get; set; }
         public bool IsNotice { get; set; } = true;
 
+        /// <summary>
+        /// A poster to send as an image right before the text, like the image in a Discord embed.
+        /// </summary>
+        public string ImageUrl { get; set; }
+
         public string PlainText => ToPlainText(_plain.ToString()).TrimEnd();
         public string Html => _html.ToString();
 

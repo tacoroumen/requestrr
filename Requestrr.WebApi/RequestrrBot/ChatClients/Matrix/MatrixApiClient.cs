@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -164,6 +165,11 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
 
         public async Task<string> SendMessageAsync(string roomId, MatrixMessage message, CancellationToken token = default)
         {
+            if (!string.IsNullOrWhiteSpace(message.ImageUrl))
+            {
+                await TrySendImageAsync(roomId, message.ImageUrl, token);
+            }
+
             var content = new JObject
             {
                 ["msgtype"] = message.IsNotice ? "m.notice" : "m.text",
@@ -204,6 +210,80 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             var body = new JObject { ["typing"] = typing };
             if (typing) body["timeout"] = 30000;
             await SendAsync(HttpMethod.Put, $"/_matrix/client/v3/rooms/{Uri.EscapeDataString(roomId)}/typing/{Uri.EscapeDataString(userId)}", body, token);
+        }
+
+        private const int MaxImageBytes = 5 * 1024 * 1024;
+        private static readonly HttpClient ImageDownloader = CreateImageDownloader();
+        private static readonly ConcurrentDictionary<string, (string Mxc, string ContentType, long Size)> UploadedImages = new ConcurrentDictionary<string, (string, string, long)>();
+
+        private static HttpClient CreateImageDownloader()
+        {
+            var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
+            return client;
+        }
+
+        /// <summary>
+        /// Downloads a poster, uploads it to the homeserver once and sends it as an m.image. Failures are ignored: the text still goes out.
+        /// </summary>
+        private async Task TrySendImageAsync(string roomId, string imageUrl, CancellationToken token)
+        {
+            try
+            {
+                if (!Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                {
+                    return;
+                }
+
+                var cacheKey = _baseUrl + "|" + imageUrl;
+
+                if (!UploadedImages.TryGetValue(cacheKey, out var uploaded))
+                {
+                    using var response = await ImageDownloader.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, token);
+                    if (!response.IsSuccessStatusCode) return;
+
+                    var contentType = response.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
+                    if (!contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) return;
+                    if (response.Content.Headers.ContentLength > MaxImageBytes) return;
+
+                    var bytes = await response.Content.ReadAsByteArrayAsync(token);
+                    if (bytes.Length == 0 || bytes.Length > MaxImageBytes) return;
+
+                    var fileName = System.IO.Path.GetFileName(uri.AbsolutePath);
+                    if (string.IsNullOrWhiteSpace(fileName)) fileName = "poster.jpg";
+
+                    using var upload = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/_matrix/media/v3/upload?filename={Uri.EscapeDataString(fileName)}");
+                    upload.Content = new ByteArrayContent(bytes);
+                    upload.Content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+
+                    using var uploadResponse = await _httpClient.SendAsync(upload, token);
+                    if (!uploadResponse.IsSuccessStatusCode) return;
+
+                    var mxc = (string)JObject.Parse(await uploadResponse.Content.ReadAsStringAsync(token))["content_uri"];
+                    if (string.IsNullOrEmpty(mxc)) return;
+
+                    uploaded = (mxc, contentType, bytes.Length);
+                    UploadedImages[cacheKey] = uploaded;
+                }
+
+                var content = new JObject
+                {
+                    ["msgtype"] = "m.image",
+                    ["body"] = "poster",
+                    ["url"] = uploaded.Mxc,
+                    ["info"] = new JObject { ["mimetype"] = uploaded.ContentType, ["size"] = uploaded.Size },
+                };
+
+                await SendEventAsync(roomId, "m.room.message", content, token);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                // A missing poster should never block the reply.
+            }
         }
 
         private async Task<string> SendEventAsync(string roomId, string eventType, JObject content, CancellationToken token)

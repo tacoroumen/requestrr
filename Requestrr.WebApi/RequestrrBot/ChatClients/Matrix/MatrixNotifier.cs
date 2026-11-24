@@ -48,6 +48,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 userIds,
                 Language.Current.DiscordNotificationMovieChannel.ReplaceTokens(movie),
                 Language.Current.DiscordNotificationMovieDM.ReplaceTokens(movie),
+                movie.PosterPath,
                 token);
         }
 
@@ -59,10 +60,11 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 userIds,
                 (perSeason ? Language.Current.DiscordNotificationTvChannelSeason : Language.Current.DiscordNotificationTvChannelFirstEpisode).ReplaceTokens(tvShow, seasonNumber),
                 (perSeason ? Language.Current.DiscordNotificationTvDMSeason : Language.Current.DiscordNotificationTvDMFirstEpisode).ReplaceTokens(tvShow, seasonNumber),
+                tvShow.Banner,
                 token);
         }
 
-        private async Task<HashSet<string>> NotifyUsersAsync(IReadOnlyCollection<string> userIds, string roomText, string directText, CancellationToken token)
+        private async Task<HashSet<string>> NotifyUsersAsync(IReadOnlyCollection<string> userIds, string roomText, string directText, string imageUrl, CancellationToken token)
         {
             // Discord user IDs share the notification store; leave them for the Discord bot.
             var matrixUserIds = userIds.Where(MatrixIds.IsUserId).ToArray();
@@ -73,11 +75,11 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             }
 
             return _notificationMode == NotificationMode.Channels
-                ? await NotifyInRoomsAsync(matrixUserIds, roomText, token)
-                : await NotifyDirectlyAsync(matrixUserIds, directText, token);
+                ? await NotifyInRoomsAsync(matrixUserIds, roomText, imageUrl, token)
+                : await NotifyDirectlyAsync(matrixUserIds, directText, imageUrl, token);
         }
 
-        private async Task<HashSet<string>> NotifyInRoomsAsync(string[] userIds, string text, CancellationToken token)
+        private async Task<HashSet<string>> NotifyInRoomsAsync(string[] userIds, string text, string imageUrl, CancellationToken token)
         {
             var notified = new HashSet<string>();
 
@@ -94,6 +96,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
 
                     var message = MatrixMessage.FromMarkdown(text).AppendLine();
                     message.IsNotice = false;
+                    message.ImageUrl = imageUrl;
 
                     foreach (var userId in toMention)
                     {
@@ -112,7 +115,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             return notified;
         }
 
-        private async Task<HashSet<string>> NotifyDirectlyAsync(string[] userIds, string text, CancellationToken token)
+        private async Task<HashSet<string>> NotifyDirectlyAsync(string[] userIds, string text, string imageUrl, CancellationToken token)
         {
             var notified = new HashSet<string>();
 
@@ -125,6 +128,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                     var roomId = await GetOrCreateDirectRoomAsync(userId, token);
                     var message = MatrixMessage.FromMarkdown(text);
                     message.IsNotice = false;
+                    message.ImageUrl = imageUrl;
                     await _client.SendMessageAsync(roomId, message, token);
                     notified.Add(userId);
                     await Task.Delay(TimeSpan.FromMilliseconds(500), token);

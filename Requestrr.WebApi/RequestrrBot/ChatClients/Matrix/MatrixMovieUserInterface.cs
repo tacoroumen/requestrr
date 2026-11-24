@@ -134,6 +134,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         private async Task<MatrixMessage> BuildDetailsAsync(Movie movie)
         {
             var message = new MatrixMessage().AppendHeading(FormatTitle(movie));
+            message.ImageUrl = movie.PosterPath;
 
             if (!string.IsNullOrWhiteSpace(movie.Overview))
             {
