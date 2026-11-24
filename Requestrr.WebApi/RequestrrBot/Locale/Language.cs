@@ -541,13 +541,13 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
         public string DiscordCommandRequestAdminSummary { get; set; }
     
         [JsonProperty("Matrix.Help.Message")]
-        public string MatrixHelpMessage { get; set; } = "Hello [AuthorUsername]! I am [BotUsername], your media request bot.\n\nAvailable commands:\n[FullCommandList]\n\nExample: `[MovieCommandTitle] Dune`\n\nWhen I show a numbered list, reply with a number. When I ask you to confirm, reply `yes` or react with ✅. Reply `cancel` to stop.";
+        public string MatrixHelpMessage { get; set; } = "Hello [AuthorUsername]! I am [BotUsername], your media request bot.\n\nAvailable commands:\n[FullCommandList]\n\nExample: `[MovieCommandTitle] Dune`\n\nWhen I ask a question, tap one of the reactions under it or type the answer: a number for a list, `yes` to confirm, `cancel` to stop.";
 
         [JsonProperty("Matrix.Selection.Prompt")]
-        public string MatrixSelectionPrompt { get; set; } = "Reply with a number from 1 to [Count], or `cancel`.";
+        public string MatrixSelectionPrompt { get; set; } = "Tap a number below or reply with a number from 1 to [Count]. Tap ❌ or reply `cancel` to stop.";
 
         [JsonProperty("Matrix.Confirm.Prompt")]
-        public string MatrixConfirmPrompt { get; set; } = "Reply `yes` or react with ✅ to confirm, or reply `cancel`.";
+        public string MatrixConfirmPrompt { get; set; } = "Tap ✅ or reply `yes` to confirm. Tap ❌ or reply `cancel` to stop.";
 
         [JsonProperty("Matrix.Cancelled")]
         public string MatrixCancelled { get; set; } = "Cancelled.";
