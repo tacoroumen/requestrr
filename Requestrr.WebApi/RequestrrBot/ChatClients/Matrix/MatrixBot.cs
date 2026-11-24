@@ -80,6 +80,39 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         private MovieNotificationEngine _movieNotificationEngine;
         private TvShowNotificationEngine _tvShowNotificationEngine;
 
+        /// <summary>
+        /// Lists the members of the rooms the bot is in (including direct rooms), for the account picker on the Users page.
+        /// </summary>
+        public async Task<IReadOnlyList<ChatUser>> GetKnownUsersAsync(CancellationToken token)
+        {
+            var client = _client;
+            var users = new Dictionary<string, ChatUser>(StringComparer.OrdinalIgnoreCase);
+
+            if (client == null)
+            {
+                return Array.Empty<ChatUser>();
+            }
+
+            foreach (var roomId in (await client.GetJoinedRoomsAsync(token)).Take(100))
+            {
+                try
+                {
+                    foreach (var member in await client.GetJoinedMembersAsync(roomId, token))
+                    {
+                        if (string.Equals(member.Key, _botUserId, StringComparison.OrdinalIgnoreCase)) continue;
+
+                        users.TryAdd(member.Key, new ChatUser { Id = member.Key, Name = member.Value, Platform = "Matrix", Detail = member.Key });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"Could not list the members of Matrix room {roomId}: {ex.Message}");
+                }
+            }
+
+            return users.Values.ToArray();
+        }
+
         public MatrixBot(
             ILogger<MatrixBot> logger,
             MatrixSettingsProvider matrixSettingsProvider,

@@ -48,6 +48,29 @@ namespace Requestrr.WebApi.Controllers.LinkedUsers
             }
         }
 
+        [HttpGet("chat-users")]
+        public async Task<IActionResult> GetChatUsersAsync([FromServices] ChatBot discordBot, [FromServices] MatrixBot matrixBot)
+        {
+            using var timeout = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var users = new System.Collections.Generic.List<ChatUser>();
+
+            foreach (var source in new Func<System.Threading.CancellationToken, Task<System.Collections.Generic.IReadOnlyList<ChatUser>>>[] { discordBot.GetKnownUsersAsync, matrixBot.GetKnownUsersAsync })
+            {
+                try
+                {
+                    users.AddRange(await source(timeout.Token));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"Could not list chat users: {ex.Message}");
+                }
+            }
+
+            return Ok(users
+                .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(x => new { id = x.Id, name = x.Name, platform = x.Platform, detail = x.Detail }));
+        }
+
         [HttpPost()]
         public IActionResult Save([FromBody] LinkedUsersModel model)
         {

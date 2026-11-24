@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useDispatch } from 'react-redux';
-import { getLinkedUsers, saveLinkedUsers, getOverseerrUsers } from "../store/actions/LinkedUsersActions";
+import { getLinkedUsers, saveLinkedUsers, getOverseerrUsers, getChatUsers } from "../store/actions/LinkedUsersActions";
 
 // reactstrap components
 import {
@@ -27,6 +27,59 @@ const isMatrixId = value => /^@[^\s:]+:\S+$/.test(value);
 const isDiscordId = value => /^\d{5,20}$/.test(value);
 
 
+// A text box that suggests Discord and Matrix users the bot can see while you type; any typed ID still works.
+function AccountPicker({ value, onChange, onPick, suggestions }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const query = value.trim().toLowerCase();
+  const matches = suggestions
+    .filter(user => !query
+      || user.name.toLowerCase().includes(query)
+      || user.id.toLowerCase().includes(query)
+      || (user.detail || "").toLowerCase().includes(query))
+    .slice(0, 8);
+
+  return (
+    <div style={{position: "relative", flex: 1}}>
+      <Input
+        bsSize="sm"
+        type="text"
+        placeholder="Search users or paste an ID"
+        value={value}
+        onChange={e => { onChange(e.target.value); setIsOpen(true); }}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => setTimeout(() => setIsOpen(false), 150)}
+        onKeyDown={e => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            setIsOpen(false);
+            onPick(matches.length === 1 && query && !isMatrixId(value.trim()) && !isDiscordId(value.trim()) ? matches[0].id : value.trim());
+          } else if (e.key === "Escape") {
+            setIsOpen(false);
+          }
+        }}
+      />
+      {
+        isOpen && matches.length > 0 ? (
+          <div className="dropdown-menu show w-100 py-1 mt-1" style={{position: "static", float: "none", maxHeight: "260px", overflowY: "auto"}}>
+            {
+              matches.map(user => (
+                <button key={user.platform + user.id} type="button" className="dropdown-item py-2" style={{whiteSpace: "normal"}}
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => { setIsOpen(false); onPick(user.id); }}>
+                  <Badge color={user.platform === "Matrix" ? "success" : "primary"} className="mr-2" style={{textTransform: "none"}}>{user.platform}</Badge>
+                  <span className="font-weight-bold">{user.name}</span>
+                  <span className="text-muted text-sm ml-2">{user.detail}</span>
+                </button>
+              ))
+            }
+          </div>)
+          : null
+      }
+    </div>
+  );
+}
+
+
 function Users() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -41,11 +94,15 @@ function Users() {
   const [newIds, setNewIds] = useState({});
   const [rowErrors, setRowErrors] = useState({});
   const [shownCount, setShownCount] = useState(PAGE_SIZE);
+  const [chatUsers, setChatUsers] = useState([]);
 
   const dispatch = useDispatch();
 
 
   useEffect(() => {
+    dispatch(getChatUsers())
+      .then(data => setChatUsers(data.users || []));
+
     Promise.all([dispatch(getLinkedUsers()), dispatch(getOverseerrUsers())])
       .then(([links, users]) => {
         setIsLoading(false);
@@ -86,8 +143,16 @@ function Users() {
 
   const setRowError = (id, error) => setRowErrors({...rowErrors, [id]: error});
 
-  const addLink = id => {
-    const chatUserId = (newIds[id] || "").trim();
+  const chatUserName = chatUserId => {
+    const user = chatUsers.find(x => x.id.toLowerCase() === chatUserId.toLowerCase());
+    return user ? user.name : null;
+  };
+
+  const linkedIds = new Set(userLinks.map(x => x.chatUserId.toLowerCase()));
+  const suggestions = chatUsers.filter(x => !linkedIds.has(x.id.toLowerCase()));
+
+  const addLink = (id, picked) => {
+    const chatUserId = (picked !== undefined ? picked : (newIds[id] || "")).trim();
 
     if (!isMatrixId(chatUserId) && !isDiscordId(chatUserId)) {
       setRowError(id, "Enter a Matrix ID (@name:your-domain) or a Discord user ID (a number).");
@@ -148,7 +213,7 @@ function Users() {
                   <p className="text-muted text-sm">
                     Requests from a linked account are made as that Seerr user, so they show up under that person in Seerr and follow their permissions and quota.
                     A Seerr user can have several accounts, such as one on Discord and one on Matrix.
-                    For Discord, use the user ID (Developer Mode on, right-click the user, Copy User ID). A link here wins over the Discord ID saved in Seerr.
+                    Type in the link box to search the members of the bot's Discord servers and Matrix rooms, or paste a Discord user ID or Matrix ID (@name:your-domain). A link here wins over the Discord ID saved in Seerr.
                     Unlinked accounts request as the default Seerr user set under Download Clients.
                   </p>
                   {
@@ -173,7 +238,7 @@ function Users() {
                         <tr>
                           <th scope="col">Seerr user</th>
                           <th scope="col">Linked accounts</th>
-                          <th scope="col" style={{minWidth: "320px"}}>Link an account</th>
+                          <th scope="col" style={{minWidth: "360px"}}>Link an account</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -190,7 +255,7 @@ function Users() {
                                     ? <span className="text-muted text-sm">None</span>
                                     : linksOf(user.id).map(link => (
                                       <Badge key={link.chatUserId} color={isMatrixId(link.chatUserId) ? "success" : "primary"} className="mr-2 mb-1" style={{fontSize: "0.8rem", textTransform: "none"}}>
-                                        {isMatrixId(link.chatUserId) ? "Matrix" : "Discord"}: {link.chatUserId}
+                                        {isMatrixId(link.chatUserId) ? "Matrix" : "Discord"}: {chatUserName(link.chatUserId) ? `${chatUserName(link.chatUserId)} (${link.chatUserId})` : link.chatUserId}
                                         <button type="button" className="close ml-2" style={{float: "none", fontSize: "1rem", lineHeight: 1}}
                                                 aria-label={`Unlink ${link.chatUserId}`} onClick={() => removeLink(link.chatUserId)}>
                                           <span aria-hidden="true">&times;</span>
@@ -200,13 +265,12 @@ function Users() {
                                 }
                               </td>
                               <td>
-                                <InputGroup size="sm">
-                                  <Input
-                                    type="text"
-                                    placeholder="Matrix or Discord ID"
+                                <InputGroup size="sm" style={{alignItems: "flex-start", flexWrap: "nowrap"}}>
+                                  <AccountPicker
                                     value={newIds[user.id] || ""}
-                                    onChange={e => setNewIds({...newIds, [user.id]: e.target.value})}
-                                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addLink(user.id); } }}
+                                    onChange={value => setNewIds({...newIds, [user.id]: value})}
+                                    onPick={chatUserId => addLink(user.id, chatUserId)}
+                                    suggestions={suggestions}
                                   />
                                   <button className="btn btn-sm btn-outline-primary ml-2" type="button" onClick={() => addLink(user.id)}>
                                     Link

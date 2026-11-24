@@ -66,3 +66,20 @@ export function getOverseerrUsers() {
             .catch(() => ({ ok: false, error: "Could not load the Seerr users." }));
     };
 };
+
+export function getChatUsers() {
+    return (dispatch, getState) => {
+        const state = getState();
+
+        return fetch("../api/linkedusers/chat-users", {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${state.user.token}`
+            }
+        })
+            .then(response => readResponse(response, "Could not load the Discord and Matrix users."))
+            .then(result => result.ok && Array.isArray(result.data) ? { ok: true, users: result.data } : { ok: false, users: [] })
+            .catch(() => ({ ok: false, users: [] }));
+    };
+};

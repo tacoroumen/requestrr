@@ -66,6 +66,51 @@ namespace Requestrr.WebApi.RequestrrBot
         private const int UnrecoverableHeartbeatInterval = 4;
         private const int UnrecoverableDisconnectTimeoutMinutes = 10;
 
+        /// <summary>
+        /// Lists the members of the Discord servers the bot is in, for the account picker on the Users page.
+        /// </summary>
+        public async Task<IReadOnlyList<ChatClients.ChatUser>> GetKnownUsersAsync(CancellationToken token)
+        {
+            var client = _client;
+            var users = new Dictionary<ulong, ChatClients.ChatUser>();
+
+            if (client == null)
+            {
+                return Array.Empty<ChatClients.ChatUser>();
+            }
+
+            foreach (var guild in client.Guilds.Values.ToArray())
+            {
+                IEnumerable<DiscordMember> members = guild.Members.Values.ToArray();
+
+                try
+                {
+                    var allMembers = guild.GetAllMembersAsync();
+                    if (await Task.WhenAny(allMembers, Task.Delay(TimeSpan.FromSeconds(10), token)) == allMembers)
+                    {
+                        members = await allMembers;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"Could not list the members of Discord server {guild.Name}, using the cached members: {ex.Message}");
+                }
+
+                foreach (var member in members.Where(x => !x.IsBot))
+                {
+                    users.TryAdd(member.Id, new ChatClients.ChatUser
+                    {
+                        Id = member.Id.ToString(),
+                        Name = member.DisplayName,
+                        Platform = "Discord",
+                        Detail = member.DisplayName == member.Username ? guild.Name : $"{member.Username} in {guild.Name}",
+                    });
+                }
+            }
+
+            return users.Values.ToArray();
+        }
+
         public ChatBot(IServiceProvider serviceProvider, ILogger<ChatBot> logger, DiscordSettingsProvider discordSettingsProvider, RequestrrServices requestrrServices)
         {
             _logger = logger;
