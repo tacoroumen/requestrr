@@ -62,7 +62,7 @@ export function getOverseerrUsers() {
             }
         })
             .then(response => readResponse(response, "Could not load the Seerr users."))
-            .then(result => result.ok && Array.isArray(result.data) ? { ok: true, users: result.data } : { ok: false, error: result.error || "Could not load the Seerr users." })
+            .then(result => result.ok && result.data && Array.isArray(result.data.users) ? { ok: true, seerrConfigured: result.data.seerrConfigured, users: result.data.users } : { ok: false, error: result.error || "Could not load the Seerr users." })
             .catch(() => ({ ok: false, error: "Could not load the Seerr users." }));
     };
 };

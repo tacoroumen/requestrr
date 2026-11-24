@@ -67,6 +67,8 @@ namespace Requestrr.WebApi.Controllers.ChatClients
         public bool AutomaticallyNotifyRequesters { get; set; }
 
         public string[] ApprovalRooms { get; set; }
+
+        public int? ApprovalPowerLevel { get; set; }
     }
 
     public class MatrixTestSettingsModel

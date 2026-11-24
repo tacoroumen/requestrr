@@ -929,14 +929,14 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Overseerr
         /// <summary>
         /// Lists the Overseerr/Seerr users, for linking chat users to them in the web UI.
         /// </summary>
-        public async Task<IReadOnlyList<(int Id, string DisplayName, string Email)>> GetUsersAsync()
+        public async Task<IReadOnlyList<(int Id, string DisplayName, string Email, bool CanManageRequests)>> GetUsersAsync()
         {
             var response = await HttpGetAsync($"{BaseURL}user?take={int.MaxValue}&skip=0&sort=displayname");
             var jsonResponse = await response.Content.ReadAsStringAsync();
             await response.ThrowIfNotSuccessfulAsync("OverseerrFindAllUsers failed", x => x.error);
 
             return (JsonConvert.DeserializeObject<JSONAllUserQuery>(jsonResponse).Results ?? new List<JSONUserResult>())
-                .Select(x => (x.ID, x.DisplayName, x.Email))
+                .Select(x => (x.ID, x.DisplayName, x.Email, IsRequestManager(x.Permissions)))
                 .ToArray();
         }
 
@@ -983,6 +983,29 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Overseerr
             _requesterIdToOverseerUserID[userId] = overseerrUserId;
             _requesterIdToOverseerDisplayName[userId] = displayName;
             return true;
+        }
+
+        /// <summary>
+        /// Tells whether the Seerr user linked to this chat user may approve and decline requests (Admin or Manage Requests).
+        /// Returns null when the chat user is not linked to a Seerr user, so the caller can fall back to its own rules.
+        /// </summary>
+        public async Task<bool?> CanManageRequestsAsync(string chatUserId)
+        {
+            if (!await FindLinkedOverseerUserAsync(chatUserId) || !_requesterIdToOverseerUserID.TryGetValue(chatUserId, out var overseerrUserId))
+            {
+                return null;
+            }
+
+            var response = await HttpGetAsync($"{BaseURL}user/{overseerrUserId}/settings/permissions");
+            await response.ThrowIfNotSuccessfulAsync("OverseerrGetUserPermissions failed", x => x.error);
+            var userPermissions = JsonConvert.DeserializeObject<JSONUserPermissions>(await response.Content.ReadAsStringAsync());
+
+            return IsRequestManager(userPermissions.Permissions);
+        }
+
+        public static bool IsRequestManager(int permissions)
+        {
+            return (permissions & ((int)Permission.ADMIN | (int)Permission.MANAGE_REQUESTS)) != 0;
         }
 
         private async Task<bool> FindLinkedOverseerUserAsync(string userId)
@@ -1399,6 +1422,8 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Overseerr
             public string DisplayName { get; set; }
             [JsonProperty("email")]
             public string Email { get; set; }
+            [JsonProperty("permissions")]
+            public int Permissions { get; set; }
         }
 
         public class JSONNetwork

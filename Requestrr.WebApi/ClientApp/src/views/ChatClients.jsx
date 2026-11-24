@@ -95,6 +95,7 @@ function ChatClients(props) {
   const [matrixNotificationRooms, setMatrixNotificationRooms] = useState([]);
   const [matrixAutomaticallyNotifyRequesters, setMatrixAutomaticallyNotifyRequesters] = useState(true);
   const [matrixApprovalRooms, setMatrixApprovalRooms] = useState([]);
+  const [matrixApprovalPowerLevel, setMatrixApprovalPowerLevel] = useState("50");
   const [matrixHomeserverUrlInvalid, setMatrixHomeserverUrlInvalid] = useState(false);
   const [isTestingMatrix, setIsTestingMatrix] = useState(false);
   const [matrixTestRequested, setMatrixTestRequested] = useState(false);
@@ -139,6 +140,7 @@ function ChatClients(props) {
         setMatrixNotificationRooms(matrix.notificationRooms || []);
         setMatrixAutomaticallyNotifyRequesters(matrix.automaticallyNotifyRequesters !== false);
         setMatrixApprovalRooms(matrix.approvalRooms || []);
+        setMatrixApprovalPowerLevel(String(matrix.approvalPowerLevel ?? 50));
         setLanguage(data.payload.language);
         setAvailableLanguages(data.payload.availableLanguages);
       });
@@ -304,6 +306,7 @@ function ChatClients(props) {
             notificationRooms: matrixNotificationRooms,
             automaticallyNotifyRequesters: matrixAutomaticallyNotifyRequesters,
             approvalRooms: matrixApprovalRooms,
+            approvalPowerLevel: /^\d+$/.test(matrixApprovalPowerLevel.trim()) ? Number(matrixApprovalPowerLevel.trim()) : 50,
           },
           language: language,
         }))
@@ -702,8 +705,32 @@ function ChatClients(props) {
                       </Col>
                       <Col lg="6">
                         <p className="text-muted text-sm mt-4">
-                          Requests that need approval in Seerr are posted here. Moderators of the room (power level 50 or higher) react with ✅ to approve or ❌ to deny.
+                          Requests that need approval in Seerr are posted here. People react with ✅ to approve or ❌ to deny.
                           Use room IDs from Room settings, Advanced, Internal room ID, and invite the bot.
+                        </p>
+                      </Col>
+                    </Row>
+                    <Row>
+                      <Col lg="6">
+                        <FormGroup>
+                          <label className="form-control-label" htmlFor="input-matrix-approval-power-level">
+                            Power level for unlinked users
+                          </label>
+                          <Input
+                            className="form-control-alternative"
+                            id="input-matrix-approval-power-level"
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={matrixApprovalPowerLevel}
+                            onChange={e => setMatrixApprovalPowerLevel(e.target.value)}
+                          />
+                        </FormGroup>
+                      </Col>
+                      <Col lg="6">
+                        <p className="text-muted text-sm mt-4">
+                          People linked to a Seerr user on the Users page can approve when that Seerr user is an admin or has Manage Requests.
+                          Unlinked people need this power level in the room: 50 is moderator, 100 is admin.
                         </p>
                       </Col>
                     </Row>

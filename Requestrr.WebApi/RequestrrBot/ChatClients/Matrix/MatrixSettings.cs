@@ -16,6 +16,9 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         public string[] NotificationRooms { get; set; } = Array.Empty<string>();
         public string[] ApprovalRooms { get; set; } = Array.Empty<string>();
 
+        /// <summary>Room power level that lets people who are not linked to a Seerr user approve requests (50 is moderator).</summary>
+        public int ApprovalPowerLevel { get; set; } = 50;
+
         public bool IsConfigured => !string.IsNullOrWhiteSpace(HomeserverUrl) && !string.IsNullOrWhiteSpace(AccessToken);
 
         public override bool Equals(object obj)
@@ -59,6 +62,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 NotificationMode = (string)matrix["NotificationMode"] ?? Notifications.NotificationMode.PrivateMessage,
                 NotificationRooms = ReadArray(matrix["NotificationRooms"]),
                 ApprovalRooms = ReadArray(matrix["ApprovalRooms"]),
+                ApprovalPowerLevel = (int?)matrix["ApprovalPowerLevel"] ?? 50,
             };
         }
 

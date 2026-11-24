@@ -658,34 +658,6 @@ namespace Requestrr.WebApi.RequestrrBot
                     return;
                 }
 
-                if (_currentSettings.RequestApprovalAdminRoleIds == null || !_currentSettings.RequestApprovalAdminRoleIds.Any())
-                {
-                    return;
-                }
-
-                var isAdmin = false;
-                try
-                {
-                    var guild = e.Guild ?? e.Channel?.Guild;
-                    if (guild != null)
-                    {
-                        var member = await guild.GetMemberAsync(e.User.Id);
-                        if (member?.Roles != null)
-                        {
-                            isAdmin = member.Roles.Any(x => _currentSettings.RequestApprovalAdminRoleIds.Contains(x.Id.ToString()));
-                        }
-                    }
-                }
-                catch
-                {
-                    isAdmin = false;
-                }
-
-                if (!isAdmin)
-                {
-                    return;
-                }
-
                 var message = e.Message;
                 if (message == null && e.Channel != null)
                 {
@@ -728,6 +700,11 @@ namespace Requestrr.WebApi.RequestrrBot
                 }
 
                 var emojiName = e.Emoji?.Name ?? string.Empty;
+                if ((!IsApproveEmoji(emojiName) && !IsDenyEmoji(emojiName)) || !await IsRequestApproverAsync(e))
+                {
+                    return;
+                }
+
                 if (IsApproveEmoji(emojiName))
                 {
                     await HandleOverseerrRequestDecisionAsync(message, requestId, true);
@@ -741,6 +718,45 @@ namespace Requestrr.WebApi.RequestrrBot
             {
                 _logger.LogError(ex, "Error while handling reaction: " + ex.Message);
             }
+        }
+
+        /// <summary>
+        /// Seerr decides for linked users (Admin or Manage Requests); unlinked users need one of the admin roles from the settings.
+        /// </summary>
+        private async Task<bool> IsRequestApproverAsync(MessageReactionAddEventArgs e)
+        {
+            try
+            {
+                var seerrDecision = await _overseerrClient.CanManageRequestsAsync(e.User.Id.ToString());
+                if (seerrDecision.HasValue)
+                {
+                    return seerrDecision.Value;
+                }
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogWarning($"Could not read the Seerr permissions of Discord user {e.User.Id}, falling back to the admin roles: {ex.Message}");
+            }
+
+            if (_currentSettings.RequestApprovalAdminRoleIds == null || !_currentSettings.RequestApprovalAdminRoleIds.Any())
+            {
+                return false;
+            }
+
+            try
+            {
+                var guild = e.Guild ?? e.Channel?.Guild;
+                if (guild != null)
+                {
+                    var member = await guild.GetMemberAsync(e.User.Id);
+                    return member?.Roles != null && member.Roles.Any(x => _currentSettings.RequestApprovalAdminRoleIds.Contains(x.Id.ToString()));
+                }
+            }
+            catch
+            {
+            }
+
+            return false;
         }
 
         private async Task HandleOverseerrRequestDecisionAsync(DiscordMessage message, int requestId, bool approved)

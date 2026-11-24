@@ -65,6 +65,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                     NotificationRooms = _chatClientsSettings.Matrix.NotificationRooms,
                     AutomaticallyNotifyRequesters = _chatClientsSettings.Matrix.AutomaticallyNotifyRequesters,
                     ApprovalRooms = _chatClientsSettings.Matrix.ApprovalRooms ?? Array.Empty<string>(),
+                    ApprovalPowerLevel = _chatClientsSettings.Matrix.ApprovalPowerLevel,
                 },
                 Language = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(_chatClientsSettings.Language.ToLower()),
                 AvailableLanguages = GetLanguages()
@@ -337,6 +338,13 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 return "Add at least one Matrix room to send notifications to.";
             }
 
+            var approvalPowerLevel = matrix.ApprovalPowerLevel ?? 50;
+
+            if (approvalPowerLevel < 0 || approvalPowerLevel > 100)
+            {
+                return "The Matrix approval power level must be between 0 and 100.";
+            }
+
             var prefix = string.IsNullOrWhiteSpace(matrix.CommandPrefix) ? "!" : matrix.CommandPrefix.Trim();
 
             if (prefix.Length > 5 || prefix.Any(char.IsWhiteSpace))
@@ -354,6 +362,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 NotificationRooms = notificationRooms,
                 AutomaticallyNotifyRequesters = matrix.AutomaticallyNotifyRequesters,
                 ApprovalRooms = approvalRooms,
+                ApprovalPowerLevel = approvalPowerLevel,
             };
 
             return null;

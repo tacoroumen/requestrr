@@ -74,7 +74,6 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         private HashSet<string> _monitoredRoomIds = new HashSet<string>();
         private HashSet<string> _notificationRoomIds = new HashSet<string>();
         private HashSet<string> _approvalRoomIds = new HashSet<string>();
-        private const int ApprovalPowerLevel = 50;
         private string _botUserId;
         private string _botDisplayName;
         private MovieNotificationEngine _movieNotificationEngine;
@@ -789,6 +788,27 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         /// <summary>
         /// A ✅ or ❌ on a request in an approval room approves or denies it in Overseerr, if the person is a moderator of that room.
         /// </summary>
+        /// <summary>
+        /// Seerr decides for linked users (Admin or Manage Requests); unlinked users need the configured power level in the room.
+        /// </summary>
+        private async Task<bool> IsRequestApproverAsync(MatrixCommandContext context)
+        {
+            try
+            {
+                var seerrDecision = await _services.OverseerrClient.CanManageRequestsAsync(context.UserId);
+                if (seerrDecision.HasValue)
+                {
+                    return seerrDecision.Value;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Could not read the Seerr permissions of {context.UserId}, falling back to the room power level: {ex.Message}");
+            }
+
+            return await _client.GetPowerLevelAsync(context.RoomId, context.UserId) >= _matrixSettingsProvider.Provide().ApprovalPowerLevel;
+        }
+
         private async Task<bool> TryHandleApprovalReactionAsync(MatrixCommandContext context, string targetEventId, string key)
         {
             var entry = PendingRequests.FindApprovalMessage(context.RoomId, targetEventId);
@@ -798,7 +818,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             var deny = CancelReactions.Contains(key);
             if (!approve && !deny) return true;
 
-            if (await _client.GetPowerLevelAsync(context.RoomId, context.UserId) < ApprovalPowerLevel)
+            if (!await IsRequestApproverAsync(context))
             {
                 await context.SendAsync(Language.Current.MatrixApprovalNotAllowed);
                 return true;

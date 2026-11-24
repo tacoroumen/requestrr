@@ -34,12 +34,19 @@ namespace Requestrr.WebApi.Controllers.LinkedUsers
         }
 
         [HttpGet("overseerr-users")]
-        public async Task<IActionResult> GetOverseerrUsersAsync([FromServices] RequestrrServices services)
+        public async Task<IActionResult> GetOverseerrUsersAsync([FromServices] RequestrrServices services, [FromServices] RequestrrBot.ChatClients.Discord.DiscordSettingsProvider downloadSettingsProvider)
         {
+            var download = downloadSettingsProvider.Provide();
+
+            if (download.MovieDownloadClient != RequestrrBot.DownloadClients.DownloadClient.Overseerr && download.TvShowDownloadClient != RequestrrBot.DownloadClients.DownloadClient.Overseerr)
+            {
+                return Ok(new { seerrConfigured = false, users = Array.Empty<object>() });
+            }
+
             try
             {
                 var users = await services.OverseerrClient.GetUsersAsync();
-                return Ok(users.Select(x => new { id = x.Id.ToString(), name = string.IsNullOrWhiteSpace(x.DisplayName) ? $"User {x.Id}" : x.DisplayName, email = x.Email ?? string.Empty }));
+                return Ok(new { seerrConfigured = true, users = users.Select(x => new { id = x.Id.ToString(), name = string.IsNullOrWhiteSpace(x.DisplayName) ? $"User {x.Id}" : x.DisplayName, email = x.Email ?? string.Empty, canManageRequests = x.CanManageRequests }) });
             }
             catch (Exception ex)
             {

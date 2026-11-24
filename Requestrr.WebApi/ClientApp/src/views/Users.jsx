@@ -95,6 +95,7 @@ function Users() {
   const [rowErrors, setRowErrors] = useState({});
   const [shownCount, setShownCount] = useState(PAGE_SIZE);
   const [chatUsers, setChatUsers] = useState([]);
+  const [seerrConfigured, setSeerrConfigured] = useState(true);
 
   const dispatch = useDispatch();
 
@@ -114,6 +115,7 @@ function Users() {
         }
 
         if (users.ok) {
+          setSeerrConfigured(users.seerrConfigured !== false);
           setOverseerrUsers(users.users);
         } else {
           setOverseerrUsersError(users.error);
@@ -215,6 +217,7 @@ function Users() {
                     A Seerr user can have several accounts, such as one on Discord and one on Matrix.
                     Type in the link box to search the members of the bot's Discord servers and Matrix rooms, or paste a Discord user ID or Matrix ID (@name:your-domain). A link here wins over the Discord ID saved in Seerr.
                     Unlinked accounts request as the default Seerr user set under Download Clients.
+                    Users marked Admin have Admin or Manage Requests in Seerr, so their linked accounts can approve and deny requests in chat. Change this in Seerr.
                   </p>
                   {
                     loadError || overseerrUsersError ? (
@@ -223,6 +226,13 @@ function Users() {
                       </Alert>)
                       : null
                   }
+                  {
+                    !isLoading && !seerrConfigured ? (
+                      <Alert color="info">
+                        Linking needs Overseerr or Seerr as the movie or TV download client. With Radarr and Sonarr, requests go straight to download, so there are no Seerr users, permissions or approvals.
+                        Chat rights then come from the Discord admin roles and the Matrix power level on the Chat clients page.
+                      </Alert>)
+                      : <>
                   <FormGroup>
                     <Input
                       className="form-control-alternative"
@@ -246,7 +256,14 @@ function Users() {
                           shownRows.map(user => (
                             <tr key={user.id}>
                               <td>
-                                <div className="font-weight-bold">{user.name}</div>
+                                <div className="font-weight-bold">
+                                  {user.name}
+                                  {
+                                    user.canManageRequests
+                                      ? <Badge color="warning" className="ml-2" style={{textTransform: "none"}} title="Admin or Manage Requests in Seerr: can approve and deny requests in chat">Admin</Badge>
+                                      : null
+                                  }
+                                </div>
                                 <div className="text-muted text-sm">{user.email}</div>
                               </td>
                               <td style={{whiteSpace: "normal"}}>
@@ -301,6 +318,8 @@ function Users() {
                         </button>
                       </div>
                       : null
+                  }
+                      </>
                   }
                   <Row className="mt-4">
                     <Col>
