@@ -24,7 +24,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         public string ReplyToEventId { get; set; }
         public bool IsNotice { get; set; } = true;
 
-        public string PlainText => _plain.ToString().TrimEnd();
+        public string PlainText => ToPlainText(_plain.ToString()).TrimEnd();
         public string Html => _html.ToString();
 
         public static MatrixMessage FromMarkdown(string markdown)
@@ -74,6 +74,12 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         public MatrixMessage AppendNumberedList(IEnumerable<string> items)
         {
             var index = 1;
+
+            if (_plain.Length > 0 && _plain[_plain.Length - 1] != '\n')
+            {
+                _plain.Append('\n');
+            }
+
             _html.Append("<ol>");
 
             foreach (var item in items)
@@ -85,6 +91,15 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
 
             _html.Append("</ol>");
             return this;
+        }
+
+        /// <summary>
+        /// Drops the bold and underline markers from the plain-text body; clients without HTML support show it as is.
+        /// </summary>
+        public static string ToPlainText(string markdown)
+        {
+            var text = BoldRegex.Replace(markdown ?? string.Empty, "$1");
+            return UnderlineRegex.Replace(text, "$1");
         }
 
         public static string MarkdownToHtml(string markdown)

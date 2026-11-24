@@ -66,6 +66,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         private Task _syncTask;
         private string _runningConfigurationKey;
         private DateTime _nextStartAttemptUtc = DateTime.MinValue;
+        private DateTime _sessionStartedUtc = DateTime.UtcNow;
         private MatrixSettings _settings = new MatrixSettings();
         private MatrixCommandCatalog _commands = new MatrixCommandCatalog();
         private HashSet<string> _monitoredRoomIds = new HashSet<string>();
@@ -173,6 +174,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         private async Task StartSessionAsync(MatrixSettings settings)
         {
             _settings = settings;
+            _sessionStartedUtc = DateTime.UtcNow;
             _client = new MatrixApiClient(settings.HomeserverUrl, settings.AccessToken);
             _sessionTokenSource = new CancellationTokenSource();
             var token = _sessionTokenSource.Token;
@@ -195,7 +197,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             StartNotificationEngines(settings, notificationRoomIds.ToArray());
 
             // The first sync only records where "now" is, so commands sent while the bot was offline are not replayed.
-            var initial = await _client.SyncAsync(null, 0, SyncFilter, token);
+            // Synapse caches /sync responses for identical requests for a few minutes, so vary the timeout to get a fresh position.
+            var initial = await _client.SyncAsync(null, Random.Shared.Next(1, 1000), SyncFilter, token);
             await HandleInvitesAsync(initial, token);
             var since = (string)initial["next_batch"];
 
@@ -388,6 +391,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 {
                     var sender = (string)e["sender"];
                     if (string.IsNullOrEmpty(sender) || sender == _botUserId) continue;
+                    if (IsFromBeforeSession(e)) continue;
 
                     var type = (string)e["type"];
                     var content = e["content"] as JObject;
@@ -411,6 +415,19 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Skips events sent before this session started (with a short grace period), so a restart does not answer old commands twice.
+        /// Uses the server-computed age, which does not depend on the two clocks agreeing.
+        /// </summary>
+        private bool IsFromBeforeSession(JObject e)
+        {
+            var ageMs = (long?)e["unsigned"]?["age"];
+            if (ageMs == null) return false;
+
+            var sessionUptimeMs = (DateTime.UtcNow - _sessionStartedUtc).TotalMilliseconds;
+            return ageMs.Value > sessionUptimeMs + 10000;
         }
 
         private void Dispatch(string roomId, string userId, Func<MatrixCommandContext, Task> handler)
