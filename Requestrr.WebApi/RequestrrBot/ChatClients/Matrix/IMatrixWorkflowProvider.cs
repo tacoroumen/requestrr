@@ -14,5 +14,10 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         IMovieSearcher GetMovieSearcher();
         TvShowRequestingWorkflow CreateTvShowWorkflow(MatrixCommandContext context, int categoryId);
         ITvShowNotificationWorkflow CreateTvShowNotificationWorkflow(MatrixCommandContext context);
+
+        /// <summary>
+        /// Remembers a "pending approval" message so it can be edited once the request is approved or declined.
+        /// </summary>
+        void TrackPendingRequest(int requestId, string roomId, string eventId, string title);
     }
 }

@@ -166,6 +166,8 @@
   "Discord.Embed.Music.ListenNow": "Listen now",
   "Discord.Notification.Music.Artist.Channel": "Music from **[MusicArtistName]** has started downloading!",
   "Discord.Notification.Music.Artist.DM": "Music from **[MusicArtistName]** has started downloading!",
+  "Matrix.Request.Approved": "Your request for **[Title]** has been approved.",
+  "Matrix.Request.Declined": "Your request for **[Title]** has been declined.",
   "Matrix.UnknownCommand": "I don't know `[Command]`. Available commands: [CommandList]. Send `[HelpCommand]` for details.",
   "Matrix.NoRequestCommands": "Movie and TV requests are not set up yet. An admin needs to configure Radarr, Sonarr or Overseerr in the Requestrr web UI.",
   "Matrix.Help.Message": "Hello [AuthorUsername]! I am [BotUsername], your media request bot.\n\nAvailable commands:\n[FullCommandList]\n\nExample: `[MovieCommandTitle] Dune`\n\nWhen I ask a question, tap one of the reactions under it or type the answer: a number for a list, `yes` to confirm, `cancel` to stop.",

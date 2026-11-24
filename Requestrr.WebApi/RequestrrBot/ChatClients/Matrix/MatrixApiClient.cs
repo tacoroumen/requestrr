@@ -136,6 +136,32 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             return (string)response["room_id"];
         }
 
+        /// <summary>
+        /// Replaces the text of a message the bot sent earlier (an m.replace edit); clients show it as edited.
+        /// </summary>
+        public async Task<string> EditMessageAsync(string roomId, string eventId, MatrixMessage message, CancellationToken token = default)
+        {
+            var newContent = new JObject
+            {
+                ["msgtype"] = message.IsNotice ? "m.notice" : "m.text",
+                ["body"] = message.PlainText,
+                ["format"] = "org.matrix.custom.html",
+                ["formatted_body"] = message.Html,
+            };
+
+            var content = new JObject
+            {
+                ["msgtype"] = newContent["msgtype"],
+                ["body"] = "* " + message.PlainText,
+                ["format"] = "org.matrix.custom.html",
+                ["formatted_body"] = "* " + message.Html,
+                ["m.new_content"] = newContent,
+                ["m.relates_to"] = new JObject { ["rel_type"] = "m.replace", ["event_id"] = eventId },
+            };
+
+            return await SendEventAsync(roomId, "m.room.message", content, token);
+        }
+
         public async Task<string> SendMessageAsync(string roomId, MatrixMessage message, CancellationToken token = default)
         {
             var content = new JObject

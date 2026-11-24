@@ -105,7 +105,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             return EndWithAsync(message);
         }
 
-        public Task DisplayRequestPendingForSeasonAsync(TvShow tvShow, TvSeason requestedSeason, int requestId)
+        public async Task DisplayRequestPendingForSeasonAsync(TvShow tvShow, TvSeason requestedSeason, int requestId)
         {
             var message = requestedSeason is AllTvSeasons
                 ? Language.Current.DiscordCommandTvRequestPendingAllSeasonsSilent.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
@@ -113,7 +113,9 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                     ? Language.Current.DiscordCommandTvRequestPendingFutureSeasonsSilent.ReplaceTokens(tvShow, requestedSeason.SeasonNumber)
                     : Language.Current.DiscordCommandTvRequestPendingSeasonSilent.ReplaceTokens(tvShow, requestedSeason.SeasonNumber);
 
-            return EndWithAsync(message);
+            _context.EndConversation();
+            var eventId = await _context.SendAsync(message);
+            _context.Workflows.TrackPendingRequest(requestId, _context.RoomId, eventId, tvShow.Title);
         }
 
         public Task WarnAlreadyNotifiedForSeasonsAsync(TvShow tvShow, TvSeason requestedSeason)

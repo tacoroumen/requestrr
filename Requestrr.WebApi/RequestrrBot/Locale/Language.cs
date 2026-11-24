@@ -540,6 +540,12 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
         [JsonProperty("Discord.Command.Request.Admin.Summary")]
         public string DiscordCommandRequestAdminSummary { get; set; }
     
+        [JsonProperty("Matrix.Request.Approved")]
+        public string MatrixRequestApproved { get; set; } = "Your request for **[Title]** has been approved.";
+
+        [JsonProperty("Matrix.Request.Declined")]
+        public string MatrixRequestDeclined { get; set; } = "Your request for **[Title]** has been declined.";
+
         [JsonProperty("Matrix.UnknownCommand")]
         public string MatrixUnknownCommand { get; set; } = "I don't know `[Command]`. Available commands: [CommandList]. Send `[HelpCommand]` for details.";
 

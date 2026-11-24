@@ -64,6 +64,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         private MatrixApiClient _client;
         private CancellationTokenSource _sessionTokenSource;
         private Task _syncTask;
+        private Task _pendingRequestsTask;
+        private MatrixPendingRequests _pendingRequests;
         private string _runningConfigurationKey;
         private DateTime _nextStartAttemptUtc = DateTime.MinValue;
         private DateTime _sessionStartedUtc = DateTime.UtcNow;
@@ -218,6 +220,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             var since = (string)initial["next_batch"];
 
             _syncTask = Task.Run(() => SyncLoopAsync(since, token));
+            _pendingRequestsTask = Task.Run(() => PendingRequestsLoopAsync(token));
         }
 
         private async Task<HashSet<string>> ResolveAndJoinRoomsAsync(IEnumerable<string> rooms, CancellationToken token)
@@ -296,6 +299,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             try
             {
                 if (_syncTask != null) await _syncTask;
+                if (_pendingRequestsTask != null) await _pendingRequestsTask;
             }
             catch
             {
@@ -702,6 +706,41 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         public IMovieSearcher GetMovieSearcher()
         {
             return _services.MovieWorkflowFactory.GetMovieSearcher();
+        }
+
+        public void TrackPendingRequest(int requestId, string roomId, string eventId, string title)
+        {
+            PendingRequests.Track(requestId, roomId, eventId, title);
+        }
+
+        private MatrixPendingRequests PendingRequests => _pendingRequests ??= new MatrixPendingRequests(_logger);
+
+        /// <summary>
+        /// Once a minute, edits "pending approval" messages whose Overseerr request was approved or declined.
+        /// </summary>
+        private async Task PendingRequestsLoopAsync(CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromMinutes(1), token);
+
+                    var download = _downloadSettingsProvider.Provide();
+                    if (download.MovieDownloadClient == DownloadClient.Overseerr || download.TvShowDownloadClient == DownloadClient.Overseerr)
+                    {
+                        await PendingRequests.CheckAsync(_client, _services.OverseerrClient, token);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"Error while checking pending Matrix requests: {ex.Message}");
+                }
+            }
         }
 
         public TvShowRequestingWorkflow CreateTvShowWorkflow(MatrixCommandContext context, int categoryId)
