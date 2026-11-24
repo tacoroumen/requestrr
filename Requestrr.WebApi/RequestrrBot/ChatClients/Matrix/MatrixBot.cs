@@ -70,6 +70,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         private MatrixSettings _settings = new MatrixSettings();
         private MatrixCommandCatalog _commands = new MatrixCommandCatalog();
         private HashSet<string> _monitoredRoomIds = new HashSet<string>();
+        private HashSet<string> _notificationRoomIds = new HashSet<string>();
         private string _botUserId;
         private string _botDisplayName;
         private MovieNotificationEngine _movieNotificationEngine;
@@ -181,12 +182,17 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
 
             _botUserId = await _client.WhoAmIAsync(token);
             _botDisplayName = await _client.GetDisplayNameAsync(_botUserId, token);
-            _logger.LogInformation($"Matrix bot signed in as {_botUserId}.");
+            _logger.LogWarning($"Matrix bot signed in as {_botUserId}.");
 
             _monitoredRoomIds = await ResolveAndJoinRoomsAsync(settings.MonitoredRooms, token);
             var notificationRoomIds = settings.NotificationMode == NotificationMode.Channels
                 ? await ResolveAndJoinRoomsAsync(settings.NotificationRooms, token)
                 : new HashSet<string>();
+            _notificationRoomIds = notificationRoomIds;
+
+            _logger.LogWarning(_monitoredRoomIds.Any()
+                ? $"Matrix bot listens in {string.Join(", ", _monitoredRoomIds)} and accepts invites to those rooms only."
+                : $"Matrix bot listens in every room it joins and accepts invites from users on {MatrixIds.ServerName(_botUserId)}.");
 
             _commands = MatrixCommandCatalog.Build(
                 _downloadSettingsProvider.Provide(),
@@ -210,22 +216,36 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             var resolved = new HashSet<string>();
             var joined = await _client.GetJoinedRoomsAsync(token);
 
-            foreach (var room in rooms)
+            foreach (var room in rooms.Select(x => x?.Trim()).Where(x => !string.IsNullOrEmpty(x)))
             {
+                string roomId;
+
                 try
                 {
-                    var roomId = MatrixIds.IsRoomAlias(room) ? await _client.ResolveRoomAliasAsync(room, token) : room;
-
-                    if (!joined.Contains(roomId))
-                    {
-                        roomId = await _client.JoinRoomAsync(roomId, token);
-                    }
-
-                    resolved.Add(roomId);
+                    roomId = MatrixIds.IsRoomAlias(room) ? await _client.ResolveRoomAliasAsync(room, token) : room;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"Could not resolve or join Matrix room \"{room}\": {ex.Message}");
+                    _logger.LogError($"Could not find Matrix room \"{room}\": {ex.Message}");
+                    continue;
+                }
+
+                // Keep the room even when the join fails: an invite-only room can only be joined after an invite, which the bot then accepts.
+                resolved.Add(roomId);
+
+                if (joined.Contains(roomId))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    await _client.JoinRoomAsync(roomId, token);
+                    _logger.LogWarning($"Joined Matrix room {room}.");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"Could not join Matrix room {room} yet ({ex.Message}). Invite {_botUserId} to the room and the bot will join.");
                 }
             }
 
@@ -340,14 +360,16 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
 
                 if (!IsInviteAllowed(roomId, inviter))
                 {
-                    _logger.LogInformation($"Ignoring Matrix invite to {roomId} from {inviter ?? "unknown user"}.");
+                    _logger.LogWarning(_monitoredRoomIds.Any()
+                        ? $"Ignoring Matrix invite to {roomId} from {inviter ?? "unknown user"}: the room is not in the monitored rooms list."
+                        : $"Ignoring Matrix invite to {roomId} from {inviter ?? "unknown user"}: only users on {MatrixIds.ServerName(_botUserId)} can invite the bot when no monitored rooms are set.");
                     continue;
                 }
 
                 try
                 {
                     await _client.JoinRoomAsync(roomId, token);
-                    _logger.LogInformation($"Joined Matrix room {roomId} after an invite from {inviter}.");
+                    _logger.LogWarning($"Joined Matrix room {roomId} after an invite from {inviter}.");
                 }
                 catch (Exception ex)
                 {
@@ -362,6 +384,11 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         /// </summary>
         private bool IsInviteAllowed(string roomId, string inviter)
         {
+            if (_notificationRoomIds.Contains(roomId))
+            {
+                return true;
+            }
+
             if (_monitoredRoomIds.Any())
             {
                 return _monitoredRoomIds.Contains(roomId);
