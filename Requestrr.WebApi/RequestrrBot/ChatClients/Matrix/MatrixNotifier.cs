@@ -206,7 +206,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         /// <summary>Matrix user IDs look like "@localpart:server".</summary>
         public static bool IsUserId(string value) => !string.IsNullOrEmpty(value) && value.StartsWith("@") && value.Contains(':');
 
-        public static bool IsRoomId(string value) => !string.IsNullOrEmpty(value) && value.StartsWith("!") && value.Contains(':');
+        /// <summary>Room IDs look like "!opaque:server", or just "!opaque" from room version 12 on.</summary>
+        public static bool IsRoomId(string value) => !string.IsNullOrEmpty(value) && value.Length > 1 && value.StartsWith("!") && !value.Any(char.IsWhiteSpace);
 
         public static bool IsRoomAlias(string value) => !string.IsNullOrEmpty(value) && value.StartsWith("#") && value.Contains(':');
 

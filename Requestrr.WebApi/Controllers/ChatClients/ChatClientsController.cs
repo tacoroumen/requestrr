@@ -345,7 +345,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 return "The Matrix access token is required.";
             }
 
-            if (monitoredRooms.Concat(notificationRooms).Concat(approvalRooms).Any(x => !(x.StartsWith("!") || x.StartsWith("#")) || !x.Contains(':')))
+            if (monitoredRooms.Concat(notificationRooms).Concat(approvalRooms).Any(x => !Requestrr.WebApi.RequestrrBot.ChatClients.Matrix.MatrixIds.IsRoomId(x) && !Requestrr.WebApi.RequestrrBot.ChatClients.Matrix.MatrixIds.IsRoomAlias(x)))
             {
                 return "Enter Matrix rooms as room ids (!abc:example.org) or aliases (#room:example.org).";
             }
