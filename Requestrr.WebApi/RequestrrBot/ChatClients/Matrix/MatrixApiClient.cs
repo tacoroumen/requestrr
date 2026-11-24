@@ -252,6 +252,12 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             return await SendEventAsync(roomId, "m.reaction", content, token);
         }
 
+        public async Task SetPresenceAsync(string userId, string statusMessage, CancellationToken token = default)
+        {
+            var body = new JObject { ["presence"] = "online", ["status_msg"] = statusMessage ?? string.Empty };
+            await SendAsync(HttpMethod.Put, $"/_matrix/client/v3/presence/{Uri.EscapeDataString(userId)}/status", body, token);
+        }
+
         public async Task SendTypingAsync(string roomId, string userId, bool typing, CancellationToken token = default)
         {
             var body = new JObject { ["typing"] = typing };

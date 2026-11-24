@@ -97,6 +97,7 @@ function ChatClients(props) {
   const [matrixApprovalRooms, setMatrixApprovalRooms] = useState([]);
   const [matrixApprovalPowerLevel, setMatrixApprovalPowerLevel] = useState("50");
   const [matrixApprovalRoomsAllRequests, setMatrixApprovalRoomsAllRequests] = useState(false);
+  const [matrixStatusMessage, setMatrixStatusMessage] = useState("");
   const [matrixMovieRequestLevels, setMatrixMovieRequestLevels] = useState([]);
   const [matrixTvShowRequestLevels, setMatrixTvShowRequestLevels] = useState([]);
   const [matrixMusicRequestLevels, setMatrixMusicRequestLevels] = useState([]);
@@ -146,6 +147,7 @@ function ChatClients(props) {
         setMatrixApprovalRooms(matrix.approvalRooms || []);
         setMatrixApprovalPowerLevel(String(matrix.approvalPowerLevel ?? 50));
         setMatrixApprovalRoomsAllRequests(matrix.approvalRoomsAllRequests || false);
+        setMatrixStatusMessage(matrix.statusMessage || "");
         setMatrixMovieRequestLevels(matrix.movieRequestLevels || []);
         setMatrixTvShowRequestLevels(matrix.tvShowRequestLevels || []);
         setMatrixMusicRequestLevels(matrix.musicRequestLevels || []);
@@ -319,6 +321,7 @@ function ChatClients(props) {
             musicRequestLevels: matrixMusicRequestLevels,
             approvalPowerLevel: /^\d+$/.test(matrixApprovalPowerLevel.trim()) ? Number(matrixApprovalPowerLevel.trim()) : 50,
             approvalRoomsAllRequests: matrixApprovalRoomsAllRequests,
+            statusMessage: matrixStatusMessage,
           },
           language: language,
         }))
@@ -577,6 +580,22 @@ function ChatClients(props) {
                             In Element, open Room settings, Advanced, and copy the Internal room ID (looks like !abc123:your-domain). An alias such as #requests:your-domain also works.
                             Then invite the bot to the room; it joins on its own.
                           </small>
+                        </FormGroup>
+                      </Col>
+                    </Row>
+                    <Row>
+                      <Col lg="6">
+                        <FormGroup>
+                          <label className="form-control-label" htmlFor="input-matrix-status-message">
+                            Status Message
+                          </label>
+                          <Input
+                            value={matrixStatusMessage} onChange={e => setMatrixStatusMessage(e.target.value)}
+                            className="form-control-alternative"
+                            id="input-matrix-status-message"
+                            placeholder={`${matrixCommandPrefix || "!"}help for commands`}
+                            type="text"
+                          />
                         </FormGroup>
                       </Col>
                     </Row>

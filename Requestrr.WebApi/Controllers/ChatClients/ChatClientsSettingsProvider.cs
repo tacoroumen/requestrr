@@ -50,6 +50,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                     ApprovalRooms = matrix.ApprovalRooms,
                     ApprovalPowerLevel = matrix.ApprovalPowerLevel,
                     ApprovalRoomsAllRequests = matrix.ApprovalRoomsAllRequests,
+                    StatusMessage = matrix.StatusMessage,
                     MovieRequestLevels = matrix.MovieRequestLevels,
                     TvShowRequestLevels = matrix.TvShowRequestLevels,
                     MusicRequestLevels = matrix.MusicRequestLevels,

@@ -205,6 +205,7 @@
   "Matrix.Help.Access.TvShows": "tv shows",
   "Matrix.Help.Access.Music": "music",
   "Matrix.Help.And": "and",
+  "Matrix.Status.Default": "[CommandPrefix]help for commands",
   "Matrix.Selection.Prompt": "Tap a number below or reply with a number from 1 to [Count]. Tap ❌ or reply `cancel` to stop.",
   "Matrix.Confirm.Prompt": "Tap ✅ or reply `yes` to confirm. Tap ❌ or reply `cancel` to stop.",
   "Matrix.Cancelled": "Cancelled.",

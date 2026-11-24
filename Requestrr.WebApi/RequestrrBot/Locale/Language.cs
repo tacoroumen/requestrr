@@ -657,6 +657,9 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
         [JsonProperty("Matrix.Help.And")]
         public string MatrixHelpAnd { get; set; } = "and";
 
+        [JsonProperty("Matrix.Status.Default")]
+        public string MatrixStatusDefault { get; set; } = "[CommandPrefix]help for commands";
+
         [JsonProperty("Matrix.Selection.Prompt")]
         public string MatrixSelectionPrompt { get; set; } = "Tap a number below or reply with a number from 1 to [Count]. Tap ❌ or reply `cancel` to stop.";
 

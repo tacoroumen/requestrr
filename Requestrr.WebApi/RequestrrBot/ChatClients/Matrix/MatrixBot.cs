@@ -208,7 +208,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
 
             return string.Join("|",
                 settings.HomeserverUrl, settings.AccessToken, settings.CommandPrefix,
-                string.Join(",", settings.MonitoredRooms), settings.NotificationMode, string.Join(",", settings.NotificationRooms), settings.AutomaticallyNotifyRequesters, string.Join(",", settings.ApprovalRooms),
+                string.Join(",", settings.MonitoredRooms), settings.NotificationMode, string.Join(",", settings.NotificationRooms), settings.AutomaticallyNotifyRequesters, string.Join(",", settings.ApprovalRooms), settings.StatusMessage,
                 download.MovieDownloadClient, download.MovieDownloadClientConfigurationHash,
                 download.TvShowDownloadClient, download.TvShowDownloadClientConfigurationHash,
                 download.MusicDownloadClient, download.MusicDownloadClientConfigurationHash,
@@ -226,6 +226,18 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             _botUserId = await _client.WhoAmIAsync(token);
             _botDisplayName = await _client.GetDisplayNameAsync(_botUserId, token);
             _logger.LogWarning($"Matrix bot signed in as {_botUserId}.");
+
+            try
+            {
+                var status = string.IsNullOrWhiteSpace(settings.StatusMessage)
+                    ? Language.Current.MatrixStatusDefault.Replace(LanguageTokens.CommandPrefix, settings.CommandPrefix)
+                    : settings.StatusMessage;
+                await _client.SetPresenceAsync(_botUserId, status, token);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Could not set the Matrix status message (the homeserver may have presence turned off): {ex.Message}");
+            }
 
             _monitoredRoomIds = await ResolveAndJoinRoomsAsync(settings.MonitoredRooms, token);
             var notificationRoomIds = settings.NotificationMode == NotificationMode.Channels

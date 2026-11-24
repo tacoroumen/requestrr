@@ -22,6 +22,9 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         /// <summary>Also post requests that went through or were denied right away to the approval rooms, like the Discord admin channel option.</summary>
         public bool ApprovalRoomsAllRequests { get; set; }
 
+        /// <summary>Presence status of the bot. Empty means "[prefix]help for commands".</summary>
+        public string StatusMessage { get; set; } = string.Empty;
+
         /// <summary>
         /// Exact room power levels (below 50) that may request each category. Empty means everyone may request it.
         /// Power level 50 and higher may always request everything.
@@ -77,6 +80,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 ApprovalRooms = ReadArray(matrix["ApprovalRooms"]),
                 ApprovalPowerLevel = (int?)matrix["ApprovalPowerLevel"] ?? 50,
                 ApprovalRoomsAllRequests = (bool?)matrix["ApprovalRoomsAllRequests"] ?? false,
+                StatusMessage = (string)matrix["StatusMessage"] ?? string.Empty,
                 MovieRequestLevels = ReadLevels(matrix["MovieRequestLevels"]),
                 TvShowRequestLevels = ReadLevels(matrix["TvShowRequestLevels"]),
                 MusicRequestLevels = ReadLevels(matrix["MusicRequestLevels"]),
