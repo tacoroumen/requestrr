@@ -64,9 +64,9 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                     NotificationMode = _chatClientsSettings.Matrix.NotificationMode,
                     NotificationRooms = _chatClientsSettings.Matrix.NotificationRooms,
                     AutomaticallyNotifyRequesters = _chatClientsSettings.Matrix.AutomaticallyNotifyRequesters,
-                    UserLinks = _chatClientsSettings.Matrix.UserLinks ?? Array.Empty<MatrixUserLink>(),
                     ApprovalRooms = _chatClientsSettings.Matrix.ApprovalRooms ?? Array.Empty<string>(),
                 },
+                UserLinks = _chatClientsSettings.UserLinks ?? Array.Empty<ChatUserLink>(),
                 Language = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(_chatClientsSettings.Language.ToLower()),
                 AvailableLanguages = GetLanguages()
             });
@@ -139,7 +139,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
             }
         }
 
-        [HttpGet("matrix/overseerr-users")]
+        [HttpGet("overseerr-users")]
         public async Task<IActionResult> GetOverseerrUsersAsync([FromServices] RequestrrServices services)
         {
             try
@@ -237,6 +237,13 @@ namespace Requestrr.WebApi.Controllers.ChatClients
             else if (matrixEnabled)
             {
                 return BadRequest("Matrix settings are missing.");
+            }
+
+            var userLinksError = ValidateAndApplyUserLinks(model.UserLinks);
+
+            if (userLinksError != null)
+            {
+                return BadRequest(userLinksError);
             }
 
             _botClientsSettings.Client = BotClientSelection.Format(discordEnabled, matrixEnabled);
@@ -353,26 +360,6 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 return "Add at least one Matrix room to send notifications to.";
             }
 
-            var userLinks = (matrix.UserLinks ?? Array.Empty<MatrixUserLink>())
-                .Where(x => x != null && !string.IsNullOrWhiteSpace(x.MatrixUserId))
-                .Select(x => new MatrixUserLink { MatrixUserId = x.MatrixUserId.Trim(), OverseerrUserId = (x.OverseerrUserId ?? string.Empty).Trim() })
-                .ToArray();
-
-            if (userLinks.Any(x => !Requestrr.WebApi.RequestrrBot.ChatClients.Matrix.MatrixIds.IsUserId(x.MatrixUserId)))
-            {
-                return "Enter Matrix users as full user IDs, like @name:example.org.";
-            }
-
-            if (userLinks.Any(x => !int.TryParse(x.OverseerrUserId, out _)))
-            {
-                return "Pick a Seerr user for every linked Matrix user.";
-            }
-
-            if (userLinks.GroupBy(x => x.MatrixUserId, StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1))
-            {
-                return "Each Matrix user can be linked to one Seerr user only.";
-            }
-
             var prefix = string.IsNullOrWhiteSpace(matrix.CommandPrefix) ? "!" : matrix.CommandPrefix.Trim();
 
             if (prefix.Length > 5 || prefix.Any(char.IsWhiteSpace))
@@ -389,10 +376,35 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 NotificationMode = notificationMode,
                 NotificationRooms = notificationRooms,
                 AutomaticallyNotifyRequesters = matrix.AutomaticallyNotifyRequesters,
-                UserLinks = userLinks,
                 ApprovalRooms = approvalRooms,
             };
 
+            return null;
+        }
+
+        private string ValidateAndApplyUserLinks(ChatUserLink[] links)
+        {
+            var userLinks = (links ?? Array.Empty<ChatUserLink>())
+                .Where(x => x != null && !string.IsNullOrWhiteSpace(x.ChatUserId))
+                .Select(x => new ChatUserLink { ChatUserId = x.ChatUserId.Trim(), OverseerrUserId = (x.OverseerrUserId ?? string.Empty).Trim() })
+                .ToArray();
+
+            if (userLinks.Any(x => !Requestrr.WebApi.RequestrrBot.ChatClients.Matrix.MatrixIds.IsUserId(x.ChatUserId) && !ulong.TryParse(x.ChatUserId, System.Globalization.NumberStyles.Integer, null, out _)))
+            {
+                return "Enter linked users as a Matrix user ID (@name:example.org) or a Discord user ID (a number).";
+            }
+
+            if (userLinks.Any(x => !int.TryParse(x.OverseerrUserId, out _)))
+            {
+                return "Pick a Seerr user for every linked chat user.";
+            }
+
+            if (userLinks.GroupBy(x => x.ChatUserId, StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1))
+            {
+                return "Each chat user can be linked to one Seerr user only.";
+            }
+
+            _chatClientsSettings.UserLinks = userLinks;
             return null;
         }
 

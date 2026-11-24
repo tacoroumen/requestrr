@@ -4,6 +4,7 @@ namespace Requestrr.WebApi.config
     {
         public DiscordSettings Discord { get; set; }
         public MatrixSettings Matrix { get; set; }
+        public ChatUserLink[] UserLinks { get; set; } = System.Array.Empty<ChatUserLink>();
         public string Language { get; set; }
     }
 
@@ -16,17 +17,16 @@ namespace Requestrr.WebApi.config
         public bool AutomaticallyNotifyRequesters { get; set; } = true;
         public string NotificationMode { get; set; } = "PrivateMessages";
         public string[] NotificationRooms { get; set; } = System.Array.Empty<string>();
-        public MatrixUserLink[] UserLinks { get; set; } = System.Array.Empty<MatrixUserLink>();
         public string[] ApprovalRooms { get; set; } = System.Array.Empty<string>();
     }
 
     /// <summary>
-    /// Links a Matrix user to an Overseerr/Seerr user, so their requests are made as that user.
-    /// Seerr stores Discord IDs per user but has no Matrix field, so the admin keeps this list in Requestrr.
+    /// Links a Discord or Matrix user to an Overseerr/Seerr user, so their requests are made as that user.
+    /// Seerr has no Matrix field, and its Discord field is per user, so the admin can keep one list for both here.
     /// </summary>
-    public class MatrixUserLink
+    public class ChatUserLink
     {
-        public string MatrixUserId { get; set; }
+        public string ChatUserId { get; set; }
         public string OverseerrUserId { get; set; }
     }
 

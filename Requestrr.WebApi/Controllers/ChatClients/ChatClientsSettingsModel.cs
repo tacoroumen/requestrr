@@ -45,6 +45,8 @@ namespace Requestrr.WebApi.Controllers.ChatClients
 
         public MatrixChatClientSettingsModel Matrix { get; set; }
 
+        public Requestrr.WebApi.config.ChatUserLink[] UserLinks { get; set; }
+
         public string Language { get; set; }
 
         public string[] AvailableLanguages { get; set; }
@@ -65,8 +67,6 @@ namespace Requestrr.WebApi.Controllers.ChatClients
         public string[] NotificationRooms { get; set; }
 
         public bool AutomaticallyNotifyRequesters { get; set; }
-
-        public Requestrr.WebApi.config.MatrixUserLink[] UserLinks { get; set; }
 
         public string[] ApprovalRooms { get; set; }
     }

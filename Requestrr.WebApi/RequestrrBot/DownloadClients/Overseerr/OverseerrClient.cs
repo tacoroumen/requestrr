@@ -941,17 +941,22 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Overseerr
         }
 
         /// <summary>
-        /// Seerr has no Matrix ID field, so Matrix users are linked through the list in the Requestrr Matrix settings instead of a Seerr lookup.
+        /// Looks the user up in the linked users list from the Requestrr chat client settings.
+        /// Seerr has no Matrix ID field, so Matrix users can only be linked here; for Discord users the list wins over the Discord ID in Seerr.
         /// </summary>
-        private async Task<bool> FindLinkedMatrixUserAsync(string userId)
+        private async Task<bool> FindListedChatUserAsync(string userId)
         {
-            var link = new ChatClients.Matrix.MatrixSettingsProvider().Provide().UserLinks
-                .FirstOrDefault(x => string.Equals(x.MatrixUserId, userId, StringComparison.OrdinalIgnoreCase));
+            var link = ChatClients.ChatUserLinks.Read()
+                .FirstOrDefault(x => string.Equals(x.ChatUserId, userId, StringComparison.OrdinalIgnoreCase));
 
             if (link == null || !int.TryParse(link.OverseerrUserId, out var overseerrUserId))
             {
-                _requesterIdToOverseerUserID.Remove(userId, out _);
-                _requesterIdToOverseerDisplayName.Remove(userId, out _);
+                if (ChatClients.Matrix.MatrixIds.IsUserId(userId))
+                {
+                    _requesterIdToOverseerUserID.Remove(userId, out _);
+                    _requesterIdToOverseerDisplayName.Remove(userId, out _);
+                }
+
                 return false;
             }
 
@@ -982,9 +987,14 @@ namespace Requestrr.WebApi.RequestrrBot.DownloadClients.Overseerr
 
         private async Task<bool> FindLinkedOverseerUserAsync(string userId)
         {
+            if (await FindListedChatUserAsync(userId))
+            {
+                return true;
+            }
+
             if (ChatClients.Matrix.MatrixIds.IsUserId(userId))
             {
-                return await FindLinkedMatrixUserAsync(userId);
+                return false;
             }
 
             if (_requesterIdToOverseerUserID.TryGetValue(userId, out var overseerrUserID))

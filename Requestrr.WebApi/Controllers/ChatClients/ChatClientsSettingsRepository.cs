@@ -37,6 +37,8 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                     settings.ChatClients.Matrix = JToken.FromObject(chatClientsSettings.Matrix);
                 }
 
+                settings.ChatClients.UserLinks = JToken.FromObject(chatClientsSettings.UserLinks ?? System.Array.Empty<ChatUserLink>());
+
                 settings.BotClient.Client = botClientSettings.Client;
 
                 settings.ChatClients.Language = chatClientsSettings.Language.ToLower();

@@ -94,7 +94,7 @@ function ChatClients(props) {
   const [matrixNotificationMode, setMatrixNotificationMode] = useState("PrivateMessages");
   const [matrixNotificationRooms, setMatrixNotificationRooms] = useState([]);
   const [matrixAutomaticallyNotifyRequesters, setMatrixAutomaticallyNotifyRequesters] = useState(true);
-  const [matrixUserLinks, setMatrixUserLinks] = useState([]);
+  const [userLinks, setUserLinks] = useState([]);
   const [matrixApprovalRooms, setMatrixApprovalRooms] = useState([]);
   const [overseerrUsers, setOverseerrUsers] = useState([]);
   const [overseerrUsersError, setOverseerrUsersError] = useState("");
@@ -142,14 +142,14 @@ function ChatClients(props) {
         setMatrixNotificationRooms(matrix.notificationRooms || []);
         setMatrixAutomaticallyNotifyRequesters(matrix.automaticallyNotifyRequesters !== false);
         setMatrixApprovalRooms(matrix.approvalRooms || []);
-        setMatrixUserLinks((matrix.userLinks || []).map(x => ({matrixUserId: x.matrixUserId || "", overseerrUserId: x.overseerrUserId || ""})));
+        setUserLinks((data.payload.userLinks || []).map(x => ({chatUserId: x.chatUserId || "", overseerrUserId: x.overseerrUserId || ""})));
         setLanguage(data.payload.language);
         setAvailableLanguages(data.payload.availableLanguages);
       });
   }, []);
 
   useEffect(() => {
-    if (!matrixEnabled) {
+    if (!discordEnabled && !matrixEnabled) {
       return;
     }
 
@@ -163,10 +163,10 @@ function ChatClients(props) {
           setOverseerrUsersError(data.error);
         }
       });
-  }, [matrixEnabled]);
+  }, [discordEnabled || matrixEnabled]);
 
-  const updateMatrixUserLink = (index, field, value) => {
-    setMatrixUserLinks(matrixUserLinks.map((link, i) => i === index ? {...link, [field]: value} : link));
+  const updateUserLink = (index, field, value) => {
+    setUserLinks(userLinks.map((link, i) => i === index ? {...link, [field]: value} : link));
   };
 
 
@@ -329,10 +329,10 @@ function ChatClients(props) {
             notificationRooms: matrixNotificationRooms,
             automaticallyNotifyRequesters: matrixAutomaticallyNotifyRequesters,
             approvalRooms: matrixApprovalRooms,
-            userLinks: matrixUserLinks
-              .filter(x => x.matrixUserId.trim() !== "")
-              .map(x => ({matrixUserId: x.matrixUserId.trim(), overseerrUserId: x.overseerrUserId})),
           },
+          userLinks: userLinks
+            .filter(x => x.chatUserId.trim() !== "")
+            .map(x => ({chatUserId: x.chatUserId.trim(), overseerrUserId: x.overseerrUserId})),
           language: language,
         }))
           .then(data => {
@@ -735,65 +735,6 @@ function ChatClients(props) {
                         </p>
                       </Col>
                     </Row>
-                  </div>
-                  <hr className="my-4"/>
-                  <h6 className="heading-small text-muted mb-4">
-                    Matrix users linked to Seerr
-                  </h6>
-                  <div className="pl-lg-4">
-                    <p className="text-muted text-sm">
-                      Requests from a linked Matrix user are made as their Seerr user, so they show up under that person in Seerr and follow their permissions.
-                      Unlinked users request as the default Seerr user set under Download Clients.
-                    </p>
-                    {
-                      overseerrUsersError ? (
-                        <Alert className="mt-3" color="warning">
-                          <strong>{overseerrUsersError}</strong>
-                        </Alert>)
-                        : null
-                    }
-                    {
-                      matrixUserLinks.map((link, index) => (
-                        <Row key={index} className="align-items-center mb-2">
-                          <Col lg="5">
-                            <Input
-                              className="form-control-alternative"
-                              placeholder="@name:your-domain"
-                              type="text"
-                              value={link.matrixUserId}
-                              onChange={e => updateMatrixUserLink(index, "matrixUserId", e.target.value)}
-                            />
-                          </Col>
-                          <Col lg="5">
-                            <Input
-                              className="form-control-alternative"
-                              type="select"
-                              value={link.overseerrUserId}
-                              onChange={e => updateMatrixUserLink(index, "overseerrUserId", e.target.value)}>
-                              <option value="">Choose a Seerr user</option>
-                              {
-                                overseerrUsers.map(user => <option key={user.id} value={user.id}>{user.name}</option>)
-                              }
-                              {
-                                link.overseerrUserId && !overseerrUsers.some(user => user.id === link.overseerrUserId)
-                                  ? <option value={link.overseerrUserId}>{`Seerr user ${link.overseerrUserId}`}</option>
-                                  : null
-                              }
-                            </Input>
-                          </Col>
-                          <Col lg="2">
-                            <button className="btn btn-sm btn-outline-danger" type="button"
-                                    onClick={() => setMatrixUserLinks(matrixUserLinks.filter((_, i) => i !== index))}>
-                              Remove
-                            </button>
-                          </Col>
-                        </Row>
-                      ))
-                    }
-                    <button className="btn btn-sm btn-outline-primary mt-2" type="button"
-                            onClick={() => setMatrixUserLinks([...matrixUserLinks, {matrixUserId: "", overseerrUserId: ""}])}>
-                      Link a Matrix user
-                    </button>
                   </div>
                     </>
                   ) : null}
@@ -1289,6 +1230,70 @@ function ChatClients(props) {
                         </FormGroup>
                       </Col>
                     </Row>
+                  </div>
+                    </>
+                  ) : null}
+                  {discordEnabled || matrixEnabled ? (
+                    <>
+                  <hr className="my-4"/>
+                  <h6 className="heading-small text-muted mb-4">
+                    Chat users linked to Seerr
+                  </h6>
+                  <div className="pl-lg-4">
+                    <p className="text-muted text-sm">
+                      Requests from a linked user are made as their Seerr user, so they show up under that person in Seerr and follow their permissions and quota.
+                      Enter a Matrix user ID (@name:your-domain) or a Discord user ID (right-click the user in Discord with Developer Mode on, then Copy User ID).
+                      For Discord, this list wins over the Discord ID saved in Seerr. Unlinked users request as the default Seerr user set under Download Clients.
+                    </p>
+                    {
+                      overseerrUsersError ? (
+                        <Alert className="mt-3" color="warning">
+                          <strong>{overseerrUsersError}</strong>
+                        </Alert>)
+                        : null
+                    }
+                    {
+                      userLinks.map((link, index) => (
+                        <Row key={index} className="align-items-center mb-2">
+                          <Col lg="5">
+                            <Input
+                              className="form-control-alternative"
+                              placeholder="@name:your-domain or Discord user ID"
+                              type="text"
+                              value={link.chatUserId}
+                              onChange={e => updateUserLink(index, "chatUserId", e.target.value)}
+                            />
+                          </Col>
+                          <Col lg="5">
+                            <Input
+                              className="form-control-alternative"
+                              type="select"
+                              value={link.overseerrUserId}
+                              onChange={e => updateUserLink(index, "overseerrUserId", e.target.value)}>
+                              <option value="">Choose a Seerr user</option>
+                              {
+                                overseerrUsers.map(user => <option key={user.id} value={user.id}>{user.name}</option>)
+                              }
+                              {
+                                link.overseerrUserId && !overseerrUsers.some(user => user.id === link.overseerrUserId)
+                                  ? <option value={link.overseerrUserId}>{`Seerr user ${link.overseerrUserId}`}</option>
+                                  : null
+                              }
+                            </Input>
+                          </Col>
+                          <Col lg="2">
+                            <button className="btn btn-sm btn-outline-danger" type="button"
+                                    onClick={() => setUserLinks(userLinks.filter((_, i) => i !== index))}>
+                              Remove
+                            </button>
+                          </Col>
+                        </Row>
+                      ))
+                    }
+                    <button className="btn btn-sm btn-outline-primary mt-2" type="button"
+                            onClick={() => setUserLinks([...userLinks, {chatUserId: "", overseerrUserId: ""}])}>
+                      Link a user
+                    </button>
                   </div>
                     </>
                   ) : null}

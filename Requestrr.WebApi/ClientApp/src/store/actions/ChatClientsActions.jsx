@@ -172,7 +172,7 @@ export function getOverseerrUsers() {
     return (dispatch, getState) => {
         const state = getState();
 
-        return fetch("../api/chatclients/matrix/overseerr-users", {
+        return fetch("../api/chatclients/overseerr-users", {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
