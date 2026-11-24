@@ -65,6 +65,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                     NotificationRooms = _chatClientsSettings.Matrix.NotificationRooms,
                     AutomaticallyNotifyRequesters = _chatClientsSettings.Matrix.AutomaticallyNotifyRequesters,
                     UserLinks = _chatClientsSettings.Matrix.UserLinks ?? Array.Empty<MatrixUserLink>(),
+                    ApprovalRooms = _chatClientsSettings.Matrix.ApprovalRooms ?? Array.Empty<string>(),
                 },
                 Language = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(_chatClientsSettings.Language.ToLower()),
                 AvailableLanguages = GetLanguages()
@@ -321,6 +322,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
             var accessToken = (matrix.AccessToken ?? string.Empty).Trim();
             var monitoredRooms = CleanIds(matrix.MonitoredRooms);
             var notificationRooms = CleanIds(matrix.NotificationRooms);
+            var approvalRooms = CleanIds(matrix.ApprovalRooms);
             var notificationMode = matrix.NotificationMode ?? "PrivateMessages";
 
             if (required || !string.IsNullOrEmpty(homeserverUrl))
@@ -336,7 +338,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 return "The Matrix access token is required.";
             }
 
-            if (monitoredRooms.Concat(notificationRooms).Any(x => !(x.StartsWith("!") || x.StartsWith("#")) || !x.Contains(':')))
+            if (monitoredRooms.Concat(notificationRooms).Concat(approvalRooms).Any(x => !(x.StartsWith("!") || x.StartsWith("#")) || !x.Contains(':')))
             {
                 return "Enter Matrix rooms as room ids (!abc:example.org) or aliases (#room:example.org).";
             }
@@ -388,6 +390,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 NotificationRooms = notificationRooms,
                 AutomaticallyNotifyRequesters = matrix.AutomaticallyNotifyRequesters,
                 UserLinks = userLinks,
+                ApprovalRooms = approvalRooms,
             };
 
             return null;

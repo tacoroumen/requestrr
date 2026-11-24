@@ -32,6 +32,18 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         public string PlainText => ToPlainText(_plain.ToString()).TrimEnd();
         public string Html => _html.ToString();
 
+        /// <summary>
+        /// Copies a message, so the same details can be sent to another room with different text after them.
+        /// </summary>
+        public static MatrixMessage FromParts(MatrixMessage other)
+        {
+            var copy = new MatrixMessage { ImageUrl = other.ImageUrl, IsNotice = other.IsNotice };
+            copy._plain.Append(other._plain);
+            copy._html.Append(other._html);
+            copy.MentionedUserIds.AddRange(other.MentionedUserIds);
+            return copy;
+        }
+
         public static MatrixMessage FromMarkdown(string markdown)
         {
             return new MatrixMessage().AppendMarkdown(markdown);

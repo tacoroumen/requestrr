@@ -17,6 +17,7 @@ namespace Requestrr.WebApi.config
         public string NotificationMode { get; set; } = "PrivateMessages";
         public string[] NotificationRooms { get; set; } = System.Array.Empty<string>();
         public MatrixUserLink[] UserLinks { get; set; } = System.Array.Empty<MatrixUserLink>();
+        public string[] ApprovalRooms { get; set; } = System.Array.Empty<string>();
     }
 
     /// <summary>

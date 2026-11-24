@@ -546,6 +546,18 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
         [JsonProperty("Matrix.Request.Declined")]
         public string MatrixRequestDeclined { get; set; } = "Your request for **[Title]** has been declined.";
 
+        [JsonProperty("Matrix.Approval.Prompt")]
+        public string MatrixApprovalPrompt { get; set; } = "[Requester] requested this and it needs approval. Moderators of this room can react with ✅ to approve or ❌ to deny.";
+
+        [JsonProperty("Matrix.Approval.Approved")]
+        public string MatrixApprovalApproved { get; set; } = "**[Title]** requested by [Requester]: approved by [DecidedBy].";
+
+        [JsonProperty("Matrix.Approval.Declined")]
+        public string MatrixApprovalDeclined { get; set; } = "**[Title]** requested by [Requester]: denied by [DecidedBy].";
+
+        [JsonProperty("Matrix.Approval.NotAllowed")]
+        public string MatrixApprovalNotAllowed { get; set; } = "Only moderators of this room can approve or deny requests.";
+
         [JsonProperty("Matrix.UnknownCommand")]
         public string MatrixUnknownCommand { get; set; } = "I don't know `[Command]`. Available commands: [CommandList]. Send `[HelpCommand]` for details.";
 

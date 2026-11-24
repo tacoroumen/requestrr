@@ -95,6 +95,7 @@ function ChatClients(props) {
   const [matrixNotificationRooms, setMatrixNotificationRooms] = useState([]);
   const [matrixAutomaticallyNotifyRequesters, setMatrixAutomaticallyNotifyRequesters] = useState(true);
   const [matrixUserLinks, setMatrixUserLinks] = useState([]);
+  const [matrixApprovalRooms, setMatrixApprovalRooms] = useState([]);
   const [overseerrUsers, setOverseerrUsers] = useState([]);
   const [overseerrUsersError, setOverseerrUsersError] = useState("");
   const [matrixHomeserverUrlInvalid, setMatrixHomeserverUrlInvalid] = useState(false);
@@ -140,6 +141,7 @@ function ChatClients(props) {
         setMatrixNotificationMode(matrix.notificationMode || "PrivateMessages");
         setMatrixNotificationRooms(matrix.notificationRooms || []);
         setMatrixAutomaticallyNotifyRequesters(matrix.automaticallyNotifyRequesters !== false);
+        setMatrixApprovalRooms(matrix.approvalRooms || []);
         setMatrixUserLinks((matrix.userLinks || []).map(x => ({matrixUserId: x.matrixUserId || "", overseerrUserId: x.overseerrUserId || ""})));
         setLanguage(data.payload.language);
         setAvailableLanguages(data.payload.availableLanguages);
@@ -326,6 +328,7 @@ function ChatClients(props) {
             notificationMode: matrixNotificationMode,
             notificationRooms: matrixNotificationRooms,
             automaticallyNotifyRequesters: matrixAutomaticallyNotifyRequesters,
+            approvalRooms: matrixApprovalRooms,
             userLinks: matrixUserLinks
               .filter(x => x.matrixUserId.trim() !== "")
               .map(x => ({matrixUserId: x.matrixUserId.trim(), overseerrUserId: x.overseerrUserId})),
@@ -699,6 +702,39 @@ function ChatClients(props) {
                         </Row>
                         : null
                     }
+                  </div>
+                  <hr className="my-4"/>
+                  <h6 className="heading-small text-muted mb-4">
+                    Matrix request approvals
+                  </h6>
+                  <div className="pl-lg-4">
+                    <Row>
+                      <Col lg="6">
+                        <FormGroup>
+                          <MultiDropdown
+                            name="Approval room(s)"
+                            create={true}
+                            searchable={true}
+                            placeholder="Enter room ids or aliases"
+                            labelField="name"
+                            valueField="id"
+                            dropdownHandle={false}
+                            selectedItems={matrixApprovalRooms.map(x => {
+                              return {name: x, id: x}
+                            })}
+                            items={matrixApprovalRooms.map(x => {
+                              return {name: x, id: x}
+                            })}
+                            onChange={newRooms => setMatrixApprovalRooms(newRooms.filter(x => /\S/.test(x.id)).map(x => x.id.trim()))}/>
+                        </FormGroup>
+                      </Col>
+                      <Col lg="6">
+                        <p className="text-muted text-sm mt-4">
+                          Requests that need approval in Seerr are posted here. Moderators of the room (power level 50 or higher) react with ✅ to approve or ❌ to deny.
+                          Use room IDs from Room settings, Advanced, Internal room ID, and invite the bot.
+                        </p>
+                      </Col>
+                    </Row>
                   </div>
                   <hr className="my-4"/>
                   <h6 className="heading-small text-muted mb-4">

@@ -73,6 +73,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         private MatrixCommandCatalog _commands = new MatrixCommandCatalog();
         private HashSet<string> _monitoredRoomIds = new HashSet<string>();
         private HashSet<string> _notificationRoomIds = new HashSet<string>();
+        private HashSet<string> _approvalRoomIds = new HashSet<string>();
+        private const int ApprovalPowerLevel = 50;
         private string _botUserId;
         private string _botDisplayName;
         private MovieNotificationEngine _movieNotificationEngine;
@@ -168,7 +170,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
 
             return string.Join("|",
                 settings.HomeserverUrl, settings.AccessToken, settings.CommandPrefix,
-                string.Join(",", settings.MonitoredRooms), settings.NotificationMode, string.Join(",", settings.NotificationRooms), settings.AutomaticallyNotifyRequesters,
+                string.Join(",", settings.MonitoredRooms), settings.NotificationMode, string.Join(",", settings.NotificationRooms), settings.AutomaticallyNotifyRequesters, string.Join(",", settings.ApprovalRooms),
                 download.MovieDownloadClient, download.MovieDownloadClientConfigurationHash,
                 download.TvShowDownloadClient, download.TvShowDownloadClientConfigurationHash,
                 Language.Current?.GetHashCode());
@@ -191,6 +193,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 ? await ResolveAndJoinRoomsAsync(settings.NotificationRooms, token)
                 : new HashSet<string>();
             _notificationRoomIds = notificationRoomIds;
+            _approvalRoomIds = await ResolveAndJoinRoomsAsync(settings.ApprovalRooms, token);
 
             _logger.LogWarning(_monitoredRoomIds.Any()
                 ? $"Matrix bot listens in {string.Join(", ", _monitoredRoomIds)} and accepts invites to those rooms only."
@@ -397,7 +400,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         /// </summary>
         private bool IsInviteAllowed(string roomId, string inviter)
         {
-            if (_notificationRoomIds.Contains(roomId))
+            if (_notificationRoomIds.Contains(roomId) || _approvalRoomIds.Contains(roomId))
             {
                 return true;
             }
@@ -412,7 +415,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
 
         private bool IsRoomAllowed(string roomId)
         {
-            return !_monitoredRoomIds.Any() || _monitoredRoomIds.Contains(roomId);
+            return !_monitoredRoomIds.Any() || _monitoredRoomIds.Contains(roomId) || _approvalRoomIds.Contains(roomId);
         }
 
         private void HandleJoinedRooms(JObject sync)
@@ -524,6 +527,11 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
 
         private async Task HandleReactionAsync(MatrixCommandContext context, string targetEventId, string key)
         {
+            if (_approvalRoomIds.Contains(context.RoomId) && await TryHandleApprovalReactionAsync(context, targetEventId, key.Trim()))
+            {
+                return;
+            }
+
             var prompt = _conversations.Get(context.RoomId, context.UserId);
             if (prompt == null || prompt.PromptEventId != targetEventId) return;
 
@@ -708,9 +716,73 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             return _services.MovieWorkflowFactory.GetMovieSearcher();
         }
 
-        public void TrackPendingRequest(int requestId, string roomId, string eventId, string title)
+        public async Task TrackPendingRequestAsync(MatrixCommandContext context, int requestId, string eventId, string title, MatrixMessage details)
         {
-            PendingRequests.Track(requestId, roomId, eventId, title);
+            PendingRequests.Track(requestId, context.RoomId, eventId, title);
+
+            var download = _downloadSettingsProvider.Provide();
+            if (download.MovieDownloadClient != DownloadClient.Overseerr && download.TvShowDownloadClient != DownloadClient.Overseerr)
+            {
+                return;
+            }
+
+            foreach (var roomId in _approvalRoomIds)
+            {
+                try
+                {
+                    var prompt = Language.Current.MatrixApprovalPrompt.Split("[Requester]");
+                    var adminMessage = CloneDetails(details);
+                    adminMessage.AppendMarkdown(prompt[0]).AppendMention(context.UserId, context.DisplayName).AppendMarkdown(prompt.Length > 1 ? prompt[1] : string.Empty);
+                    adminMessage.IsNotice = false;
+
+                    var adminEventId = await _client.SendMessageAsync(roomId, adminMessage);
+                    PendingRequests.Track(requestId, roomId, adminEventId, title, isApprovalMessage: true, requesterName: context.DisplayName ?? context.UserId);
+
+                    await _client.SendReactionAsync(roomId, adminEventId, MatrixCommandContext.ConfirmReaction);
+                    await _client.SendReactionAsync(roomId, adminEventId, MatrixCommandContext.CancelReaction);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"Could not post request {requestId} to approval room {roomId}: {ex.Message}");
+                }
+            }
+        }
+
+        private static MatrixMessage CloneDetails(MatrixMessage details)
+        {
+            return MatrixMessage.FromParts(details);
+        }
+
+        /// <summary>
+        /// A ✅ or ❌ on a request in an approval room approves or denies it in Overseerr, if the person is a moderator of that room.
+        /// </summary>
+        private async Task<bool> TryHandleApprovalReactionAsync(MatrixCommandContext context, string targetEventId, string key)
+        {
+            var entry = PendingRequests.FindApprovalMessage(context.RoomId, targetEventId);
+            if (entry == null) return false;
+
+            var approve = ConfirmReactions.Contains(key);
+            var deny = CancelReactions.Contains(key);
+            if (!approve && !deny) return true;
+
+            if (await _client.GetPowerLevelAsync(context.RoomId, context.UserId) < ApprovalPowerLevel)
+            {
+                await context.SendAsync(Language.Current.MatrixApprovalNotAllowed);
+                return true;
+            }
+
+            if (approve)
+            {
+                await _services.OverseerrClient.ApproveRequestAsync(entry.RequestId);
+            }
+            else
+            {
+                await _services.OverseerrClient.DeclineRequestAsync(entry.RequestId);
+            }
+
+            _logger.LogWarning($"Matrix user {context.UserId} {(approve ? "approved" : "denied")} Overseerr request {entry.RequestId}.");
+            await PendingRequests.CompleteAsync(_client, entry.RequestId, approve, context.DisplayName ?? context.UserId, CancellationToken.None);
+            return true;
         }
 
         private MatrixPendingRequests PendingRequests => _pendingRequests ??= new MatrixPendingRequests(_logger);

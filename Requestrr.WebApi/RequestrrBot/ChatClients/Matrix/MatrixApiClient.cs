@@ -91,6 +91,37 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             return new HashSet<string>(response["joined_rooms"]?.ToObject<string[]>() ?? Array.Empty<string>());
         }
 
+        /// <summary>
+        /// The user's power level in a room (0 for normal users, 50 for moderators, 100 for admins by default).
+        /// </summary>
+        public async Task<int> GetPowerLevelAsync(string roomId, string userId, CancellationToken token = default)
+        {
+            var levels = await SendAsync(HttpMethod.Get, $"/_matrix/client/v3/rooms/{Uri.EscapeDataString(roomId)}/state/m.room.power_levels", null, token);
+            var userLevel = (int?)levels["users"]?[userId];
+
+            if (userLevel.HasValue)
+            {
+                return userLevel.Value;
+            }
+
+            // From room version 12, the room creators outrank everyone and are left out of the power levels list.
+            var create = await SendAsync(HttpMethod.Get, $"/_matrix/client/v3/rooms/{Uri.EscapeDataString(roomId)}/state/m.room.create/?format=event", null, token);
+            var roomVersion = (string)(create["content"]?["room_version"]) ?? "1";
+            var creators = new HashSet<string> { (string)create["sender"] };
+
+            foreach (var additional in (create["content"]?["additional_creators"] as JArray) ?? new JArray())
+            {
+                creators.Add((string)additional);
+            }
+
+            if (int.TryParse(roomVersion, out var version) && version >= 12 && creators.Contains(userId))
+            {
+                return int.MaxValue;
+            }
+
+            return (int?)levels["users_default"] ?? 0;
+        }
+
         public async Task<Dictionary<string, string>> GetJoinedMembersAsync(string roomId, CancellationToken token = default)
         {
             var response = await SendAsync(HttpMethod.Get, $"/_matrix/client/v3/rooms/{Uri.EscapeDataString(roomId)}/joined_members", null, token);

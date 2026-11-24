@@ -115,7 +115,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
 
             _context.EndConversation();
             var eventId = await _context.SendAsync(message);
-            _context.Workflows.TrackPendingRequest(requestId, _context.RoomId, eventId, tvShow.Title);
+            await _context.Workflows.TrackPendingRequestAsync(_context, requestId, eventId, tvShow.Title, BuildDetails(tvShow));
         }
 
         public Task WarnAlreadyNotifiedForSeasonsAsync(TvShow tvShow, TvSeason requestedSeason)

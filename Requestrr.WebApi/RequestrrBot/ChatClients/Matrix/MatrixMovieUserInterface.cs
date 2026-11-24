@@ -112,7 +112,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         {
             _context.EndConversation();
             var eventId = await _context.SendAsync(Language.Current.DiscordCommandMovieRequestPendingSilent.ReplaceTokens(movie));
-            _context.Workflows.TrackPendingRequest(requestId, _context.RoomId, eventId, movie.Title);
+            await _context.Workflows.TrackPendingRequestAsync(_context, requestId, eventId, movie.Title, await BuildDetailsAsync(movie));
         }
 
         public Task DisplayMovieIssueDetailsAsync(MovieRequest request, Movie movie, string issue) => NotSupportedAsync();

@@ -67,6 +67,8 @@ namespace Requestrr.WebApi.Controllers.ChatClients
         public bool AutomaticallyNotifyRequesters { get; set; }
 
         public Requestrr.WebApi.config.MatrixUserLink[] UserLinks { get; set; }
+
+        public string[] ApprovalRooms { get; set; }
     }
 
     public class MatrixTestSettingsModel
