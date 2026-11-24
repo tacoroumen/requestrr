@@ -116,6 +116,8 @@ namespace Requestrr.WebApi.RequestrrBot.Movies
             else if (result.IsPending && result.RequestId.HasValue)
             {
                 await _userInterface.DisplayRequestPendingAsync(movie, result.RequestId.Value);
+                // Pending requests still become available once approved, so the requester is notified then too.
+                await _notificationWorkflow.NotifyForNewRequestAsync(_user.UserId, movie);
             }
             else
             {

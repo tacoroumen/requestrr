@@ -44,6 +44,8 @@ namespace Requestrr.WebApi.RequestrrBot.TvShows.SeasonsRequestWorkflows
             else if (result.IsPending && result.RequestId.HasValue)
             {
                 await _userInterface.DisplayRequestPendingForSeasonAsync(tvShow, selectedSeason, result.RequestId.Value);
+                // Pending requests still become available once approved, so the requester is notified then too.
+                await _tvShowNotificationWorkflow.NotifyForNewRequestAsync(request.User.UserId, tvShow, selectedSeason);
             }
             else
             {
