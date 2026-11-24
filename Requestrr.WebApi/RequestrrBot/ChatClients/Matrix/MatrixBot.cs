@@ -200,6 +200,15 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 _sonarrSettingsProvider.Provide(),
                 _overseerrSettingsProvider.Provide());
 
+            if (_commands.Commands.Any())
+            {
+                _logger.LogWarning($"Matrix bot commands: {string.Join(", ", _commands.Commands.Select(x => settings.CommandPrefix + x.Name))}.");
+            }
+            else
+            {
+                _logger.LogWarning("Matrix bot has no request commands: set up Radarr, Sonarr or Overseerr (with at least one category) in the web UI.");
+            }
+
             StartNotificationEngines(settings, notificationRoomIds.ToArray());
 
             // The first sync only records where "now" is, so commands sent while the bot was offline are not replayed.
@@ -574,6 +583,12 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
 
             if (!_commands.TryGet(name, out var command))
             {
+                await context.SendAsync(_commands.Commands.Any()
+                    ? Language.Current.MatrixUnknownCommand
+                        .Replace("[Command]", _settings.CommandPrefix + name)
+                        .Replace("[CommandList]", string.Join(", ", _commands.Commands.Select(x => $"`{_settings.CommandPrefix}{x.Name}`")))
+                        .Replace("[HelpCommand]", _settings.CommandPrefix + "help")
+                    : Language.Current.MatrixNoRequestCommands);
                 return;
             }
 
@@ -626,6 +641,11 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 .Replace(LanguageTokens.CommandPrefix, prefix)
                 .Replace(LanguageTokens.MovieCommandTitle, prefix + _commands.FirstMovieCommandName())
                 .Replace(LanguageTokens.FullCommandList, string.Join("\n", commandList));
+
+            if (!_commands.Commands.Any())
+            {
+                text += "\n\n" + Language.Current.MatrixNoRequestCommands;
+            }
 
             return MatrixMessage.FromMarkdown(text);
         }

@@ -540,6 +540,12 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
         [JsonProperty("Discord.Command.Request.Admin.Summary")]
         public string DiscordCommandRequestAdminSummary { get; set; }
     
+        [JsonProperty("Matrix.UnknownCommand")]
+        public string MatrixUnknownCommand { get; set; } = "I don't know `[Command]`. Available commands: [CommandList]. Send `[HelpCommand]` for details.";
+
+        [JsonProperty("Matrix.NoRequestCommands")]
+        public string MatrixNoRequestCommands { get; set; } = "Movie and TV requests are not set up yet. An admin needs to configure Radarr, Sonarr or Overseerr in the Requestrr web UI.";
+
         [JsonProperty("Matrix.Help.Message")]
         public string MatrixHelpMessage { get; set; } = "Hello [AuthorUsername]! I am [BotUsername], your media request bot.\n\nAvailable commands:\n[FullCommandList]\n\nExample: `[MovieCommandTitle] Dune`\n\nWhen I ask a question, tap one of the reactions under it or type the answer: a number for a list, `yes` to confirm, `cancel` to stop.";
 
