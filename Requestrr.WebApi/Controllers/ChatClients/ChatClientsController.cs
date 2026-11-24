@@ -66,7 +66,6 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                     AutomaticallyNotifyRequesters = _chatClientsSettings.Matrix.AutomaticallyNotifyRequesters,
                     ApprovalRooms = _chatClientsSettings.Matrix.ApprovalRooms ?? Array.Empty<string>(),
                 },
-                UserLinks = _chatClientsSettings.UserLinks ?? Array.Empty<ChatUserLink>(),
                 Language = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(_chatClientsSettings.Language.ToLower()),
                 AvailableLanguages = GetLanguages()
             });
@@ -136,21 +135,6 @@ namespace Requestrr.WebApi.Controllers.ChatClients
             catch (System.Exception)
             {
                 return BadRequest($"Invalid bot token");
-            }
-        }
-
-        [HttpGet("overseerr-users")]
-        public async Task<IActionResult> GetOverseerrUsersAsync([FromServices] RequestrrServices services)
-        {
-            try
-            {
-                var users = await services.OverseerrClient.GetUsersAsync();
-                return Ok(users.Select(x => new { id = x.Id.ToString(), name = string.IsNullOrWhiteSpace(x.DisplayName) ? $"User {x.Id}" : x.DisplayName }));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning($"Could not list Overseerr users: {ex.Message}");
-                return BadRequest("Could not load the Seerr users. Set up Overseerr/Seerr under Download Clients first.");
             }
         }
 
@@ -237,13 +221,6 @@ namespace Requestrr.WebApi.Controllers.ChatClients
             else if (matrixEnabled)
             {
                 return BadRequest("Matrix settings are missing.");
-            }
-
-            var userLinksError = ValidateAndApplyUserLinks(model.UserLinks);
-
-            if (userLinksError != null)
-            {
-                return BadRequest(userLinksError);
             }
 
             _botClientsSettings.Client = BotClientSelection.Format(discordEnabled, matrixEnabled);
@@ -379,32 +356,6 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 ApprovalRooms = approvalRooms,
             };
 
-            return null;
-        }
-
-        private string ValidateAndApplyUserLinks(ChatUserLink[] links)
-        {
-            var userLinks = (links ?? Array.Empty<ChatUserLink>())
-                .Where(x => x != null && !string.IsNullOrWhiteSpace(x.ChatUserId))
-                .Select(x => new ChatUserLink { ChatUserId = x.ChatUserId.Trim(), OverseerrUserId = (x.OverseerrUserId ?? string.Empty).Trim() })
-                .ToArray();
-
-            if (userLinks.Any(x => !Requestrr.WebApi.RequestrrBot.ChatClients.Matrix.MatrixIds.IsUserId(x.ChatUserId) && !ulong.TryParse(x.ChatUserId, System.Globalization.NumberStyles.Integer, null, out _)))
-            {
-                return "Enter linked users as a Matrix user ID (@name:example.org) or a Discord user ID (a number).";
-            }
-
-            if (userLinks.Any(x => !int.TryParse(x.OverseerrUserId, out _)))
-            {
-                return "Pick a Seerr user for every linked chat user.";
-            }
-
-            if (userLinks.GroupBy(x => x.ChatUserId, StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1))
-            {
-                return "Each chat user can be linked to one Seerr user only.";
-            }
-
-            _chatClientsSettings.UserLinks = userLinks;
             return null;
         }
 

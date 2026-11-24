@@ -11,8 +11,16 @@ namespace Requestrr.WebApi.Controllers.ChatClients
     {
         public static void Update(BotClientSettings botClientSettings, ChatClientsSettings chatClientsSettings)
         {
+            // Links saved by earlier builds live under the Matrix settings, which get replaced below, so move them up first.
+            var userLinks = RequestrrBot.ChatClients.ChatUserLinks.Read();
+
             SettingsFile.Write(settings =>
             {
+                if (settings.ChatClients.UserLinks == null)
+                {
+                    settings.ChatClients.UserLinks = JToken.FromObject(userLinks);
+                }
+
                 settings.ChatClients.Discord.BotToken = chatClientsSettings.Discord.BotToken;
                 settings.ChatClients.Discord.ClientId = chatClientsSettings.Discord.ClientId;
                 settings.ChatClients.Discord.StatusMessage = chatClientsSettings.Discord.StatusMessage;
@@ -36,8 +44,6 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 {
                     settings.ChatClients.Matrix = JToken.FromObject(chatClientsSettings.Matrix);
                 }
-
-                settings.ChatClients.UserLinks = JToken.FromObject(chatClientsSettings.UserLinks ?? System.Array.Empty<ChatUserLink>());
 
                 settings.BotClient.Client = botClientSettings.Client;
 

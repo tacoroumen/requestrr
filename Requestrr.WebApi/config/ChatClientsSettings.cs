@@ -4,7 +4,6 @@ namespace Requestrr.WebApi.config
     {
         public DiscordSettings Discord { get; set; }
         public MatrixSettings Matrix { get; set; }
-        public ChatUserLink[] UserLinks { get; set; } = System.Array.Empty<ChatUserLink>();
         public string Language { get; set; }
     }
 

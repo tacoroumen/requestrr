@@ -19,7 +19,7 @@ import {useEffect, useState} from "react";
 import {Oval} from 'react-loader-spinner'
 import {useDispatch} from 'react-redux';
 import {Alert} from "reactstrap";
-import {testSettings, testMatrixSettings, getOverseerrUsers} from "../store/actions/ChatClientsActions"
+import {testSettings, testMatrixSettings} from "../store/actions/ChatClientsActions"
 import {getSettings} from "../store/actions/ChatClientsActions"
 import {save} from "../store/actions/ChatClientsActions"
 import MultiDropdown from "../components/Inputs/MultiDropdown"
@@ -94,10 +94,7 @@ function ChatClients(props) {
   const [matrixNotificationMode, setMatrixNotificationMode] = useState("PrivateMessages");
   const [matrixNotificationRooms, setMatrixNotificationRooms] = useState([]);
   const [matrixAutomaticallyNotifyRequesters, setMatrixAutomaticallyNotifyRequesters] = useState(true);
-  const [userLinks, setUserLinks] = useState([]);
   const [matrixApprovalRooms, setMatrixApprovalRooms] = useState([]);
-  const [overseerrUsers, setOverseerrUsers] = useState([]);
-  const [overseerrUsersError, setOverseerrUsersError] = useState("");
   const [matrixHomeserverUrlInvalid, setMatrixHomeserverUrlInvalid] = useState(false);
   const [isTestingMatrix, setIsTestingMatrix] = useState(false);
   const [matrixTestRequested, setMatrixTestRequested] = useState(false);
@@ -142,32 +139,10 @@ function ChatClients(props) {
         setMatrixNotificationRooms(matrix.notificationRooms || []);
         setMatrixAutomaticallyNotifyRequesters(matrix.automaticallyNotifyRequesters !== false);
         setMatrixApprovalRooms(matrix.approvalRooms || []);
-        setUserLinks((data.payload.userLinks || []).map(x => ({chatUserId: x.chatUserId || "", overseerrUserId: x.overseerrUserId || ""})));
         setLanguage(data.payload.language);
         setAvailableLanguages(data.payload.availableLanguages);
       });
   }, []);
-
-  useEffect(() => {
-    if (!discordEnabled && !matrixEnabled) {
-      return;
-    }
-
-    dispatch(getOverseerrUsers())
-      .then(data => {
-        if (data.ok) {
-          setOverseerrUsers(data.users);
-          setOverseerrUsersError("");
-        } else {
-          setOverseerrUsers([]);
-          setOverseerrUsersError(data.error);
-        }
-      });
-  }, [discordEnabled || matrixEnabled]);
-
-  const updateUserLink = (index, field, value) => {
-    setUserLinks(userLinks.map((link, i) => i === index ? {...link, [field]: value} : link));
-  };
 
 
   useEffect(() => {
@@ -330,9 +305,6 @@ function ChatClients(props) {
             automaticallyNotifyRequesters: matrixAutomaticallyNotifyRequesters,
             approvalRooms: matrixApprovalRooms,
           },
-          userLinks: userLinks
-            .filter(x => x.chatUserId.trim() !== "")
-            .map(x => ({chatUserId: x.chatUserId.trim(), overseerrUserId: x.overseerrUserId})),
           language: language,
         }))
           .then(data => {
@@ -1230,70 +1202,6 @@ function ChatClients(props) {
                         </FormGroup>
                       </Col>
                     </Row>
-                  </div>
-                    </>
-                  ) : null}
-                  {discordEnabled || matrixEnabled ? (
-                    <>
-                  <hr className="my-4"/>
-                  <h6 className="heading-small text-muted mb-4">
-                    Chat users linked to Seerr
-                  </h6>
-                  <div className="pl-lg-4">
-                    <p className="text-muted text-sm">
-                      Requests from a linked user are made as their Seerr user, so they show up under that person in Seerr and follow their permissions and quota.
-                      Enter a Matrix user ID (@name:your-domain) or a Discord user ID (right-click the user in Discord with Developer Mode on, then Copy User ID).
-                      For Discord, this list wins over the Discord ID saved in Seerr. Unlinked users request as the default Seerr user set under Download Clients.
-                    </p>
-                    {
-                      overseerrUsersError ? (
-                        <Alert className="mt-3" color="warning">
-                          <strong>{overseerrUsersError}</strong>
-                        </Alert>)
-                        : null
-                    }
-                    {
-                      userLinks.map((link, index) => (
-                        <Row key={index} className="align-items-center mb-2">
-                          <Col lg="5">
-                            <Input
-                              className="form-control-alternative"
-                              placeholder="@name:your-domain or Discord user ID"
-                              type="text"
-                              value={link.chatUserId}
-                              onChange={e => updateUserLink(index, "chatUserId", e.target.value)}
-                            />
-                          </Col>
-                          <Col lg="5">
-                            <Input
-                              className="form-control-alternative"
-                              type="select"
-                              value={link.overseerrUserId}
-                              onChange={e => updateUserLink(index, "overseerrUserId", e.target.value)}>
-                              <option value="">Choose a Seerr user</option>
-                              {
-                                overseerrUsers.map(user => <option key={user.id} value={user.id}>{user.name}</option>)
-                              }
-                              {
-                                link.overseerrUserId && !overseerrUsers.some(user => user.id === link.overseerrUserId)
-                                  ? <option value={link.overseerrUserId}>{`Seerr user ${link.overseerrUserId}`}</option>
-                                  : null
-                              }
-                            </Input>
-                          </Col>
-                          <Col lg="2">
-                            <button className="btn btn-sm btn-outline-danger" type="button"
-                                    onClick={() => setUserLinks(userLinks.filter((_, i) => i !== index))}>
-                              Remove
-                            </button>
-                          </Col>
-                        </Row>
-                      ))
-                    }
-                    <button className="btn btn-sm btn-outline-primary mt-2" type="button"
-                            onClick={() => setUserLinks([...userLinks, {chatUserId: "", overseerrUserId: ""}])}>
-                      Link a user
-                    </button>
                   </div>
                     </>
                   ) : null}

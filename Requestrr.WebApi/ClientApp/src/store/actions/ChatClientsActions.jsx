@@ -167,34 +167,3 @@ export function save(saveModel) {
             });
     }
 };
-
-export function getOverseerrUsers() {
-    return (dispatch, getState) => {
-        const state = getState();
-
-        return fetch("../api/chatclients/overseerr-users", {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${state.user.token}`
-            }
-        })
-            .then(async response => {
-                const text = await response.text();
-                let data = null;
-
-                try {
-                    data = JSON.parse(text);
-                } catch {
-                    data = null;
-                }
-
-                if (response.ok && Array.isArray(data)) {
-                    return { ok: true, users: data };
-                }
-
-                return { ok: false, error: typeof (data) === "string" ? data : "Could not load the Seerr users." };
-            })
-            .catch(() => ({ ok: false, error: "Could not load the Seerr users." }));
-    };
-};
