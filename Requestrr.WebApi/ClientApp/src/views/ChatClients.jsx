@@ -59,6 +59,13 @@ function ChatClients(props) {
   const [chatClient, setChatClient] = useState("");
   const [chatClientChanged, setChatClientChanged] = useState(false);
   const [chatClientInvalid, setChatClientInvalid] = useState(false);
+  const enabledClients = (chatClient || "").split(",").map(x => x.trim()).filter(x => x);
+  const discordEnabled = enabledClients.includes("Discord");
+  const matrixEnabled = enabledClients.includes("Matrix");
+  const setClients = (discord, matrix) => {
+    setChatClient([discord ? "Discord" : null, matrix ? "Matrix" : null].filter(x => x).join(","));
+    setChatClientChanged(true);
+  };
   const [clientId, setClientId] = useState("");
   const [clientIdChanged, setClientIdChanged] = useState(false);
   const [clientIdInvalid, setClientIdInvalid] = useState(false);
@@ -88,6 +95,10 @@ function ChatClients(props) {
   const [matrixNotificationRooms, setMatrixNotificationRooms] = useState([]);
   const [matrixAutomaticallyNotifyRequesters, setMatrixAutomaticallyNotifyRequesters] = useState(true);
   const [matrixHomeserverUrlInvalid, setMatrixHomeserverUrlInvalid] = useState(false);
+  const [isTestingMatrix, setIsTestingMatrix] = useState(false);
+  const [matrixTestRequested, setMatrixTestRequested] = useState(false);
+  const [matrixTestSuccess, setMatrixTestSuccess] = useState(false);
+  const [matrixTestError, setMatrixTestError] = useState("");
   const [matrixAccessTokenInvalid, setMatrixAccessTokenInvalid] = useState(false);
   const [language, setLanguage] = useState("english");
   const [availableLanguages, setAvailableLanguages] = useState([]);
@@ -135,7 +146,7 @@ function ChatClients(props) {
   useEffect(() => {
     if (chatClientChanged)
       triggerChatClientValidation();
-  }, [chatClientChanged]);
+  }, [chatClientChanged, chatClient]);
 
 
   useEffect(() => {
@@ -205,40 +216,48 @@ function ChatClients(props) {
     return /\S/.test(matrixAccessToken);
   };
 
-  const isMatrix = () => chatClient === "Matrix";
+  const validateMatrixFields = () => {
+    setMatrixHomeserverUrlInvalid(!validateMatrixHomeserverUrl());
+    setMatrixAccessTokenInvalid(!validateMatrixAccessToken());
+    return validateMatrixHomeserverUrl() && validateMatrixAccessToken();
+  };
 
   const validateSelectedClient = () => {
-    if (isMatrix()) {
-      setMatrixHomeserverUrlInvalid(!validateMatrixHomeserverUrl());
-      setMatrixAccessTokenInvalid(!validateMatrixAccessToken());
-      return validateMatrixHomeserverUrl() && validateMatrixAccessToken();
+    let valid = true;
+
+    if (matrixEnabled) {
+      valid = validateMatrixFields() && valid;
     }
 
-    triggerClientIdValidation();
-    triggerBotTokenValidation();
-    return validateBotToken() && validateClientId();
+    if (discordEnabled) {
+      triggerClientIdValidation();
+      triggerBotTokenValidation();
+      valid = validateBotToken() && validateClientId() && valid;
+    }
+
+    return valid;
   };
 
   const onTestMatrixSettings = (e) => {
     e.preventDefault();
 
-    if (!isTestingSettings && validateSelectedClient()) {
-      setIsTestingSettings(true);
+    if (!isTestingMatrix && validateMatrixFields()) {
+      setIsTestingMatrix(true);
 
       dispatch(testMatrixSettings({
         homeserverUrl: matrixHomeserverUrl.trim(),
         accessToken: matrixAccessToken.trim(),
       }))
         .then(data => {
-          setIsTestingSettings(false);
-          setTestSettingsRequested(true);
+          setIsTestingMatrix(false);
+          setMatrixTestRequested(true);
 
           if (data.ok) {
-            setTestSettingsError("");
-            setTestSettingsSuccess(true);
+            setMatrixTestError("");
+            setMatrixTestSuccess(true);
           } else {
-            setTestSettingsError(typeof (data.error) === "string" ? data.error : "An unknown error occurred while testing the settings");
-            setTestSettingsSuccess(false);
+            setMatrixTestError(typeof (data.error) === "string" ? data.error : "An unknown error occurred while testing the settings");
+            setMatrixTestSuccess(false);
           }
         });
     }
@@ -413,19 +432,45 @@ function ChatClients(props) {
                     <Row>
                       <Col lg="6">
                         <FormGroup>
-                          <Dropdown
-                            name="Chat Client"
-                            value={chatClient === "Matrix" ? "Matrix" : "Discord"}
-                            items={[{name: "Discord", value: "Discord"}, {name: "Matrix", value: "Matrix"}]}
-                            onChange={newClient => {
-                              setChatClient(newClient);
-                              setTestSettingsRequested(false);
-                            }}/>
+                          <label className="form-control-label">
+                            Chat Clients
+                          </label>
+                          <div className="custom-control custom-control-alternative custom-checkbox mb-2">
+                            <Input
+                              className="custom-control-input"
+                              id="enableDiscord"
+                              type="checkbox"
+                              onChange={() => setClients(!discordEnabled, matrixEnabled)}
+                              checked={discordEnabled}
+                            />
+                            <label className="custom-control-label" htmlFor="enableDiscord">
+                              <span className="text-muted">Discord</span>
+                            </label>
+                          </div>
+                          <div className="custom-control custom-control-alternative custom-checkbox mb-2">
+                            <Input
+                              className="custom-control-input"
+                              id="enableMatrix"
+                              type="checkbox"
+                              onChange={() => setClients(discordEnabled, !matrixEnabled)}
+                              checked={matrixEnabled}
+                            />
+                            <label className="custom-control-label" htmlFor="enableMatrix">
+                              <span className="text-muted">Matrix</span>
+                            </label>
+                          </div>
+                          {
+                            chatClientInvalid ? (
+                                <Alert className="mt-3" color="warning">
+                                  <strong>Turn on at least one chat client.</strong>
+                                </Alert>)
+                              : null
+                          }
                         </FormGroup>
                       </Col>
                     </Row>
                   </div>
-                  {chatClient === "Matrix" ? (
+                  {matrixEnabled ? (
                     <>
                   <hr className="my-4"/>
                   <div>
@@ -525,10 +570,10 @@ function ChatClients(props) {
                       <Col>
                         <FormGroup className="mt-2">
                           {
-                            testSettingsRequested && !isTestingSettings ?
-                              !testSettingsSuccess ? (
+                            matrixTestRequested && !isTestingMatrix ?
+                              !matrixTestSuccess ? (
                                   <Alert className="text-center" color="danger">
-                                    <strong>{testSettingsError}</strong>
+                                    <strong>{matrixTestError}</strong>
                                   </Alert>)
                                 : <Alert className="text-center" color="success">
                                   <strong>Signed in to Matrix successfully.</strong>
@@ -537,11 +582,11 @@ function ChatClients(props) {
                           }
                         </FormGroup>
                         <FormGroup className="text-right">
-                          <button onClick={onTestMatrixSettings} disabled={isTestingSettings}
+                          <button onClick={onTestMatrixSettings} disabled={isTestingMatrix}
                                   className="btn btn-icon btn-3 btn-default" type="button">
                             <span className="btn-inner--icon">
                               {
-                                isTestingSettings ? (
+                                isTestingMatrix ? (
                                   <Oval
                                     wrapperClass="loader"
                                     type="Oval"
@@ -621,7 +666,8 @@ function ChatClients(props) {
                     }
                   </div>
                     </>
-                  ) : (
+                  ) : null}
+                  {discordEnabled ? (
                     <>
                   <hr className="my-4"/>
                   <div>
@@ -1115,7 +1161,7 @@ function ChatClients(props) {
                     </Row>
                   </div>
                     </>
-                  )}
+                  ) : null}
                   <hr className="my-4"/>
                   <h6 className="heading-small text-muted mb-4">
                     Chat Command Options

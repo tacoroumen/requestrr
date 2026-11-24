@@ -7,6 +7,7 @@ using DSharpPlus.EventArgs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Requestrr.WebApi.config;
+using Requestrr.WebApi.RequestrrBot;
 
 namespace Requestrr.WebApi.Controllers.ChatClients
 {
@@ -31,7 +32,7 @@ namespace Requestrr.WebApi.Controllers.ChatClients
         {
             return Ok(new ChatClientsSettingsModel
             {
-                Client = Requestrr.WebApi.RequestrrBot.BotClientSelection.Current(),
+                Client = BotClientSelection.Format(BotClientSelection.IsDiscordEnabled(), BotClientSelection.IsMatrixEnabled()),
                 StatusMessage = _chatClientsSettings.Discord.StatusMessage,
                 BotToken = _chatClientsSettings.Discord.BotToken,
                 ClientId = _chatClientsSettings.Discord.ClientId,
@@ -160,32 +161,36 @@ namespace Requestrr.WebApi.Controllers.ChatClients
         [HttpPost()]
         public async Task<IActionResult> SaveAsync([FromBody] ChatClientsSettingsModel model)
         {
-            var isMatrix = string.Equals(model.Client, "matrix", StringComparison.InvariantCultureIgnoreCase);
+            var requestedClients = (model.Client ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-            if (!isMatrix && !string.Equals(model.Client, "discord", StringComparison.InvariantCultureIgnoreCase))
+            if (!requestedClients.Any() || requestedClients.Any(x => !BotClientSelection.IsKnownClient(x)))
             {
                 return BadRequest("Invalid client was selected");
             }
 
+            var discordEnabled = requestedClients.Contains(BotClientSelection.Discord, StringComparer.OrdinalIgnoreCase);
+            var matrixEnabled = requestedClients.Contains(BotClientSelection.Matrix, StringComparer.OrdinalIgnoreCase);
+
             if (model.Matrix != null)
             {
-                var matrixError = ValidateAndApplyMatrix(model.Matrix, isMatrix);
+                var matrixError = ValidateAndApplyMatrix(model.Matrix, matrixEnabled);
 
                 if (matrixError != null)
                 {
                     return BadRequest(matrixError);
                 }
             }
-            else if (isMatrix)
+            else if (matrixEnabled)
             {
                 return BadRequest("Matrix settings are missing.");
             }
 
-            if (isMatrix)
+            _botClientsSettings.Client = BotClientSelection.Format(discordEnabled, matrixEnabled);
+
+            if (!discordEnabled)
             {
-                // Keep the stored Discord settings as they are, so switching back to Discord restores them.
+                // Keep the stored Discord settings as they are, so turning Discord back on restores them.
                 _chatClientsSettings.Language = model.Language;
-                _botClientsSettings.Client = "Matrix";
                 ChatClientsSettingsRepository.Update(_botClientsSettings, _chatClientsSettings);
                 return Ok(new { ok = true });
             }
@@ -251,7 +256,6 @@ namespace Requestrr.WebApi.Controllers.ChatClients
             _chatClientsSettings.Discord.AutomaticallyPurgeCommandMessages = model.AutomaticallyPurgeCommandMessages;
             _chatClientsSettings.Language = model.Language;
 
-            _botClientsSettings.Client = "Discord";
 
             ChatClientsSettingsRepository.Update(_botClientsSettings, _chatClientsSettings);
 

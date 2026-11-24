@@ -92,11 +92,11 @@ namespace Requestrr.WebApi.RequestrrBot
                         _waitTimeout--;
                     try
                     {
-                        if (BotClientSelection.IsMatrix())
+                        if (!BotClientSelection.IsDiscordEnabled())
                         {
                             if (_client != null || _slashCommands != null)
                             {
-                                _logger.LogWarning("Matrix is the selected chat client: stopping the Discord bot.");
+                                _logger.LogWarning("Discord is turned off: stopping the Discord bot.");
                                 await StopDiscordAsync();
                             }
 

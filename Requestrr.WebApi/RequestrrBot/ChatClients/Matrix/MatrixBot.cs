@@ -22,7 +22,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
 {
     /// <summary>
     /// Runs Requestrr as a Matrix bot. It long-polls /sync, answers text commands in allowed rooms,
-    /// and sends availability notifications. It runs only when Matrix is the selected chat client.
+    /// and sends availability notifications. It runs when Matrix is turned on, alongside the Discord bot if that is on too.
     /// </summary>
     public class MatrixBot : IMatrixWorkflowProvider
     {
@@ -117,7 +117,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         private async Task SuperviseAsync()
         {
             var settings = _matrixSettingsProvider.Provide();
-            var shouldRun = BotClientSelection.IsMatrix() && settings.IsConfigured;
+            var shouldRun = BotClientSelection.IsMatrixEnabled() && settings.IsConfigured;
 
             if (!shouldRun)
             {
