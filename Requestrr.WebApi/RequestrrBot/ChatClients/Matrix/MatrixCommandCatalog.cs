@@ -16,6 +16,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         MovieByTmdbId,
         TvShowByTitle,
         TvShowByTvdbId,
+        MovieIssue,
+        TvShowIssue,
     }
 
     public class MatrixCommand
@@ -32,6 +34,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 MatrixCommandKind.MovieByTmdbId => "<tmdb id>",
                 MatrixCommandKind.TvShowByTitle => "<tv show title>",
                 MatrixCommandKind.TvShowByTvdbId => "<tvdb id>",
+                MatrixCommandKind.MovieIssue => "<movie title>",
+                MatrixCommandKind.TvShowIssue => "<tv show title>",
                 _ => string.Empty,
             };
 
@@ -50,7 +54,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
 
         public IReadOnlyCollection<MatrixCommand> Commands => _commands.Values;
 
-        public static MatrixCommandCatalog Build(DiscordSettings downloadSettings, RadarrSettings radarr, SonarrSettings sonarr, OverseerrSettings overseerr)
+        public static MatrixCommandCatalog Build(DiscordSettings downloadSettings, RadarrSettings radarr, SonarrSettings sonarr, OverseerrSettings overseerr, bool movieIssues = false, bool tvShowIssues = false)
         {
             var catalog = new MatrixCommandCatalog();
 
@@ -86,6 +90,12 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 catalog.Add(Language.Current.DiscordCommandTvRequestTvdbName, MatrixCommandKind.TvShowByTvdbId, DefaultCategoryId);
             }
 
+            if (movieIssues)
+                catalog.Add($"{Language.Current.DiscordCommandIssueName}-{Language.Current.DiscordCommandMovieIssueTitleName}", MatrixCommandKind.MovieIssue, DefaultCategoryId);
+
+            if (tvShowIssues)
+                catalog.Add($"{Language.Current.DiscordCommandIssueName}-{Language.Current.DiscordCommandTvIssueTitleName}", MatrixCommandKind.TvShowIssue, DefaultCategoryId);
+
             return catalog;
         }
 
@@ -101,6 +111,8 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         {
             return _commands.TryGetValue(name, out command);
         }
+
+        public const int IssueCategoryId = DefaultCategoryId;
 
         public string FirstMovieCommandName()
         {

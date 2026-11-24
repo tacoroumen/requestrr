@@ -235,7 +235,9 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 _downloadSettingsProvider.Provide(),
                 _radarrSettingsProvider.Provide(),
                 _sonarrSettingsProvider.Provide(),
-                _overseerrSettingsProvider.Provide());
+                _overseerrSettingsProvider.Provide(),
+                GetMovieIssueClient() != null,
+                GetTvShowIssueClient() != null);
 
             if (_commands.Commands.Any())
             {
@@ -555,6 +557,11 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                 context.EndConversation();
                 await WithTypingAsync(context, prompt.OnConfirm);
             }
+            else if (prompt.OnText != null)
+            {
+                context.EndConversation();
+                await WithTypingAsync(context, () => prompt.OnText(text));
+            }
         }
 
         private async Task HandleReactionAsync(MatrixCommandContext context, string targetEventId, string key)
@@ -658,6 +665,11 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         private async Task<bool> CanRequestAsync(MatrixCommandContext context, MatrixCommand command)
         {
             var settings = _matrixSettingsProvider.Provide();
+            if (command.Kind == MatrixCommandKind.MovieIssue || command.Kind == MatrixCommandKind.TvShowIssue)
+            {
+                return true;
+            }
+
             var isMovie = command.Kind == MatrixCommandKind.MovieByTitle || command.Kind == MatrixCommandKind.MovieByTmdbId;
             var levels = isMovie ? settings.MovieRequestLevels : settings.TvShowRequestLevels;
 
@@ -709,7 +721,99 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                     else
                         await context.SendAsync(command.Usage(_settings.CommandPrefix));
                     break;
+                case MatrixCommandKind.MovieIssue:
+                    await ReportMovieIssueAsync(context, argument);
+                    break;
+                case MatrixCommandKind.TvShowIssue:
+                    await ReportTvShowIssueAsync(context, argument);
+                    break;
             }
+        }
+
+        /// <summary>
+        /// The client that takes issue reports for movies, when the movie download client supports them and they are turned on.
+        /// </summary>
+        private object GetMovieIssueClient()
+        {
+            var download = _downloadSettingsProvider.Provide();
+
+            if (download.MovieDownloadClient == DownloadClient.Overseerr && _overseerrSettingsProvider.Provide().UseMovieIssue) return _services.OverseerrClient;
+            if (download.MovieDownloadClient == DownloadClient.Ombi && new DownloadClients.Ombi.OmbiSettingsProvider().Provide().UseMovieIssue) return _services.OmbiClient;
+            return null;
+        }
+
+        private object GetTvShowIssueClient()
+        {
+            var download = _downloadSettingsProvider.Provide();
+
+            if (download.TvShowDownloadClient == DownloadClient.Overseerr && _overseerrSettingsProvider.Provide().UseTVIssue) return _services.OverseerrClient;
+            if (download.TvShowDownloadClient == DownloadClient.Ombi && new DownloadClients.Ombi.OmbiSettingsProvider().Provide().UseTVIssue) return _services.OmbiClient;
+            return null;
+        }
+
+        private async Task ReportMovieIssueAsync(MatrixCommandContext context, string title)
+        {
+            if (GetMovieIssueClient() is not (IMovieIssueSearcher searcher and IMovieIssueRequester requester)) return;
+
+            var request = new MovieRequest(new MovieUserRequester(context.UserId, context.DisplayName), MatrixCommandCatalog.IssueCategoryId);
+            var movies = (await searcher.SearchMovieLibraryAsync(request, title.Replace(".", " "))).Take(10).ToArray();
+
+            Func<Movie, Task> pick = movie => AskIssueTypeAsync(context, searcher.IssueTypes, movie.Title, Language.Current.MatrixIssueDescribeMovie,
+                async (issueValue, description) =>
+                {
+                    var success = await requester.SubmitMovieIssueAsync(request, int.Parse(movie.TheMovieDbId), issueValue, description);
+                    await context.SendAsync((success ? Language.Current.DiscordCommandMovieIssueSuccess : Language.Current.DiscordCommandMovieIssueFailed).Replace("[MovieTitle]", movie.Title));
+                });
+
+            await PickIssueTargetAsync(context, title, movies, x => string.IsNullOrWhiteSpace(x.ReleaseDate) || x.ReleaseDate.Length < 4 ? x.Title : $"{x.Title} ({x.ReleaseDate.Substring(0, 4)})", pick);
+        }
+
+        private async Task ReportTvShowIssueAsync(MatrixCommandContext context, string title)
+        {
+            if (GetTvShowIssueClient() is not (ITvShowIssueSearcher searcher and ITvShowIssueRequester requester)) return;
+
+            var request = new TvShowRequest(new TvShowUserRequester(context.UserId, context.DisplayName), MatrixCommandCatalog.IssueCategoryId);
+            var tvShows = (await searcher.SearchTvShowLibraryAsync(request, title.Replace(".", " "))).Take(10).ToArray();
+
+            Func<SearchedTvShow, Task> pick = tvShow => AskIssueTypeAsync(context, searcher.IssueTypes, tvShow.Title, Language.Current.MatrixIssueDescribeTv,
+                async (issueValue, description) =>
+                {
+                    var success = await requester.SubmitTvShowIssueAsync(request, tvShow.TheTvDbId, issueValue, description);
+                    await context.SendAsync((success ? Language.Current.DiscordCommandTvIssueSuccess : Language.Current.DiscordCommandTvIssueFailed).Replace("[TvShowTitle]", tvShow.Title));
+                });
+
+            await PickIssueTargetAsync(context, title, tvShows, x => string.IsNullOrWhiteSpace(x.FirstAired) || x.FirstAired.Length < 4 ? x.Title : $"{x.Title} ({x.FirstAired.Substring(0, 4)})", pick);
+        }
+
+        private static async Task PickIssueTargetAsync<T>(MatrixCommandContext context, string query, IReadOnlyList<T> found, Func<T, string> label, Func<T, Task> pick)
+        {
+            if (found.Count == 0)
+            {
+                await context.SendAsync(Language.Current.MatrixIssueNotFound.Replace("[Title]", query));
+            }
+            else if (found.Count == 1)
+            {
+                await pick(found[0]);
+            }
+            else
+            {
+                await context.AskToChooseAsync(
+                    MatrixMessage.FromMarkdown(Language.Current.MatrixIssueSelect).AppendLine(),
+                    found.Select(label).ToArray(),
+                    found.Select(x => (Func<Task>)(() => pick(x))).ToArray());
+            }
+        }
+
+        private static async Task AskIssueTypeAsync(MatrixCommandContext context, IReadOnlyDictionary<string, int> issueTypes, string title, string describeTemplate, Func<string, string, Task> submit)
+        {
+            var types = issueTypes.ToArray();
+
+            await context.AskToChooseAsync(
+                MatrixMessage.FromMarkdown(Language.Current.MatrixIssueType.Replace("[Title]", title)).AppendLine(),
+                types.Select(x => x.Key).ToArray(),
+                types.Select(type => (Func<Task>)(() => context.AskForTextAsync(
+                    MatrixMessage.FromMarkdown(describeTemplate.Replace("[Issue]", type.Key).Replace("[Title]", title)),
+                    description => submit(type.Value.ToString(), description)))).ToArray());
         }
 
         private MatrixMessage BuildHelpMessage(MatrixCommandContext context)

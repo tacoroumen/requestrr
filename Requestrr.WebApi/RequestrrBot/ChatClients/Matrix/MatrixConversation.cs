@@ -16,6 +16,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
         public string PromptEventId { get; set; }
         public IReadOnlyList<Func<Task>> Choices { get; set; } = Array.Empty<Func<Task>>();
         public Func<Task> OnConfirm { get; set; }
+        public Func<string, Task> OnText { get; set; }
         public DateTime ExpiresAtUtc { get; set; }
 
         public bool IsSelection => Choices.Count > 0;

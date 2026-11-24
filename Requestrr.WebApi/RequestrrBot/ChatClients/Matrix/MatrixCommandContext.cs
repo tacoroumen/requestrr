@@ -98,6 +98,16 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             });
         }
 
+        /// <summary>
+        /// Asks a free-text question and passes the user's next message in this room to the action.
+        /// </summary>
+        public async Task AskForTextAsync(MatrixMessage message, Func<string, Task> onText)
+        {
+            var eventId = await SendAsync(message);
+            Conversations.Set(RoomId, UserId, new MatrixPrompt { PromptEventId = eventId, OnText = onText });
+            AddButtons(eventId, new[] { CancelReaction });
+        }
+
         public void EndConversation()
         {
             Conversations.Clear(RoomId, UserId);

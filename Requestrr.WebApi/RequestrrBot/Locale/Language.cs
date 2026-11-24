@@ -558,6 +558,21 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
         [JsonProperty("Matrix.Approval.NotAllowed")]
         public string MatrixApprovalNotAllowed { get; set; } = "You are not allowed to approve or deny requests. Ask a Seerr admin to give your Seerr account the Manage Requests permission.";
 
+        [JsonProperty("Matrix.Issue.Select")]
+        public string MatrixIssueSelect { get; set; } = "Which one do you want to report a problem with?";
+
+        [JsonProperty("Matrix.Issue.Type")]
+        public string MatrixIssueType { get; set; } = "What is wrong with **[Title]**?";
+
+        [JsonProperty("Matrix.Issue.Describe.Movie")]
+        public string MatrixIssueDescribeMovie { get; set; } = "Describe the **[Issue]** problem with **[Title]** in one message, or reply `cancel` to stop.";
+
+        [JsonProperty("Matrix.Issue.Describe.Tv")]
+        public string MatrixIssueDescribeTv { get; set; } = "Describe the **[Issue]** problem with **[Title]** in one message. Mention the season and episode if it is only one episode. Reply `cancel` to stop.";
+
+        [JsonProperty("Matrix.Issue.NotFound")]
+        public string MatrixIssueNotFound { get; set; } = "I could not find **[Title]** in the library. You can only report problems with media that is available.";
+
         [JsonProperty("Matrix.Request.NotAllowed")]
         public string MatrixRequestNotAllowed { get; set; } = "You are not allowed to request [Category] here. Ask a room admin for access.";
 
