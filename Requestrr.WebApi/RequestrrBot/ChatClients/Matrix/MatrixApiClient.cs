@@ -33,6 +33,11 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
     {
         private const int MaxRateLimitRetries = 3;
         private readonly HttpClient _httpClient;
+        /// <summary>
+        /// Sent on every homeserver request, so admins can allow the bot through a firewall or proxy such as Cloudflare.
+        /// </summary>
+        public const string UserAgent = "Requestrr-Matrix/1.0";
+
         private readonly string _baseUrl;
         private long _transactionCounter = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
@@ -41,6 +46,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             _baseUrl = homeserverUrl.TrimEnd('/');
             _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
         }
 
         public async Task<string> WhoAmIAsync(CancellationToken token = default)

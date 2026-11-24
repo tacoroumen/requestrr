@@ -66,16 +66,37 @@ export function testMatrixSettings(settings) {
             body: JSON.stringify({
                 "HomeserverUrl": settings.homeserverUrl,
                 "AccessToken": settings.accessToken,
-            })
+            }),
+            signal: typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined
         })
-            .then(data => data.json())
-            .then(data => {
-                if (data.ok) {
+            .then(async response => {
+                const text = await response.text();
+                let data = null;
+
+                try {
+                    data = JSON.parse(text);
+                } catch {
+                    data = null;
+                }
+
+                if (response.ok && data && data.ok) {
                     return { ok: true };
                 }
 
-                return { ok: false, error: data }
-            });
+                if (typeof (data) === "string") {
+                    return { ok: false, error: data };
+                }
+
+                if (data === null && text && text.length < 500 && !text.trim().startsWith("<")) {
+                    return { ok: false, error: text };
+                }
+
+                return { ok: false, error: `Requestrr answered with HTTP ${response.status}. Check the container logs.` };
+            })
+            .catch(error => ({
+                ok: false,
+                error: error && error.name === "TimeoutError" ? "The test took longer than 30 seconds. Check the container logs." : "Could not reach Requestrr to run the test."
+            }));
     };
 };
 

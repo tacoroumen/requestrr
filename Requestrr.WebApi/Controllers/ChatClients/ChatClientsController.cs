@@ -6,6 +6,7 @@ using DSharpPlus;
 using DSharpPlus.EventArgs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Requestrr.WebApi.config;
 using Requestrr.WebApi.RequestrrBot;
 
@@ -18,11 +19,14 @@ namespace Requestrr.WebApi.Controllers.ChatClients
     {
         private readonly ChatClientsSettings _chatClientsSettings;
         private readonly BotClientSettings _botClientsSettings;
+        private readonly ILogger<ChatClientsController> _logger;
 
         public ChatClientsController(
             ChatClientsSettingsProvider chatClientsSettingsProvider,
-            BotClientSettingsProvider botClientSettingsProvider)
+            BotClientSettingsProvider botClientSettingsProvider,
+            ILogger<ChatClientsController> logger)
         {
+            _logger = logger;
             _chatClientsSettings = chatClientsSettingsProvider.Provide();
             _botClientsSettings = botClientSettingsProvider.Provide();
         }
@@ -141,10 +145,17 @@ namespace Requestrr.WebApi.Controllers.ChatClients
                 return BadRequest("Enter the homeserver URL, starting with https:// or http://.");
             }
 
+            if (string.IsNullOrWhiteSpace(model.AccessToken))
+            {
+                return BadRequest("Enter the access token of the bot account.");
+            }
+
+            var homeserverUrl = homeserver.GetLeftPart(UriPartial.Path).TrimEnd('/');
+
             try
             {
-                using var client = new Requestrr.WebApi.RequestrrBot.ChatClients.Matrix.MatrixApiClient(homeserver.ToString(), model.AccessToken.Trim());
-                using var timeout = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(15));
+                using var client = new Requestrr.WebApi.RequestrrBot.ChatClients.Matrix.MatrixApiClient(homeserverUrl, model.AccessToken.Trim());
+                using var timeout = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(10));
                 var userId = await client.WhoAmIAsync(timeout.Token);
                 return Ok(new { ok = true, userId });
             }
@@ -152,9 +163,35 @@ namespace Requestrr.WebApi.Controllers.ChatClients
             {
                 return BadRequest("The homeserver rejected the access token.");
             }
-            catch (Exception)
+            catch (Requestrr.WebApi.RequestrrBot.ChatClients.Matrix.MatrixApiException ex)
             {
-                return BadRequest("Could not reach the Matrix homeserver. Check the URL.");
+                _logger.LogWarning($"Matrix test: {homeserverUrl} answered HTTP {(int)ex.StatusCode} {ex.ErrorCode} {ex.Message}");
+                if (ex.StatusCode == System.Net.HttpStatusCode.Forbidden || ex.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable)
+                {
+                    return BadRequest($"{homeserverUrl} blocked the request with HTTP {(int)ex.StatusCode}. A firewall or proxy such as Cloudflare may be blocking bots: allow the user agent {Requestrr.WebApi.RequestrrBot.ChatClients.Matrix.MatrixApiClient.UserAgent}.");
+                }
+
+                return BadRequest($"{homeserverUrl} answered with HTTP {(int)ex.StatusCode}, so it may not be the Matrix client API. Use the address your Matrix client (Element) connects to.");
+            }
+            catch (Newtonsoft.Json.JsonReaderException)
+            {
+                _logger.LogWarning($"Matrix test: {homeserverUrl} did not answer with JSON.");
+                return BadRequest($"{homeserverUrl} answered with a web page instead of the Matrix API. Use the address your Matrix client (Element) connects to, usually https://matrix.your-domain.");
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogWarning($"Matrix test: no answer from {homeserverUrl} within 10 seconds.");
+                return BadRequest($"No answer from {homeserverUrl} within 10 seconds. Check that Requestrr can reach that address from where it runs (DNS, firewall, or NAT loopback).");
+            }
+            catch (System.Net.Http.HttpRequestException ex)
+            {
+                _logger.LogWarning(ex, $"Matrix test: could not connect to {homeserverUrl}: {ex.Message}");
+                return BadRequest($"Could not connect to {homeserverUrl}: {ex.InnerException?.Message ?? ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, $"Matrix test against {homeserverUrl} failed: {ex.Message}");
+                return BadRequest($"The Matrix test failed: {ex.Message}");
             }
         }
 
