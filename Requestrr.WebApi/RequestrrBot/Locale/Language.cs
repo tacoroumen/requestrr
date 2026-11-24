@@ -583,7 +583,79 @@ namespace Requestrr.WebApi.RequestrrBot.Locale
         public string MatrixNoRequestCommands { get; set; } = "Movie and TV requests are not set up yet. An admin needs to configure Radarr, Sonarr or Overseerr in the Requestrr web UI.";
 
         [JsonProperty("Matrix.Help.Message")]
-        public string MatrixHelpMessage { get; set; } = "Hello [AuthorUsername]! I am [BotUsername], your media request bot.\n\nAvailable commands:\n[FullCommandList]\n\nExample: `[MovieCommandTitle] Dune`\n\nWhen I ask a question, tap one of the reactions under it or type the answer: a number for a list, `yes` to confirm, `cancel` to stop.";
+        public string MatrixHelpMessage { get; set; } = "Hello [AuthorUsername]! I am [BotUsername], your media request bot.\n\n[Access]\n\n[FullCommandList]\n\n[Examples]\n\nWhen I ask a question, tap one of the reactions under it or type the answer: a number to pick from a list, `yes` to confirm, `cancel` to stop. If I find more than one match, I show a list so you can pick the right one.";
+
+        [JsonProperty("Matrix.Help.Section.Movies")]
+        public string MatrixHelpSectionMovies { get; set; } = "🎬 Movies";
+
+        [JsonProperty("Matrix.Help.Section.TvShows")]
+        public string MatrixHelpSectionTvShows { get; set; } = "📺 TV shows";
+
+        [JsonProperty("Matrix.Help.Section.Music")]
+        public string MatrixHelpSectionMusic { get; set; } = "🎵 Music";
+
+        [JsonProperty("Matrix.Help.Section.Issues")]
+        public string MatrixHelpSectionIssues { get; set; } = "⚠️ Report a problem";
+
+        [JsonProperty("Matrix.Help.Section.Other")]
+        public string MatrixHelpSectionOther { get; set; } = "ℹ️ Other";
+
+        [JsonProperty("Matrix.Help.Category.Note")]
+        public string MatrixHelpCategoryNote { get; set; } = "(uses the **[Category]** settings)";
+
+        [JsonProperty("Matrix.Help.Movie.Title")]
+        public string MatrixHelpMovieByTitle { get; set; } = "search for a movie and request it";
+
+        [JsonProperty("Matrix.Help.Movie.Tmdb")]
+        public string MatrixHelpMovieByTmdbId { get; set; } = "request a movie by its TMDB id";
+
+        [JsonProperty("Matrix.Help.Tv.Title")]
+        public string MatrixHelpTvShowByTitle { get; set; } = "search for a tv show and pick the seasons you want";
+
+        [JsonProperty("Matrix.Help.Tv.Tvdb")]
+        public string MatrixHelpTvShowByTvdbId { get; set; } = "request a tv show by its TVDB id";
+
+        [JsonProperty("Matrix.Help.Music.Artist")]
+        public string MatrixHelpMusicArtist { get; set; } = "search for an artist and request their music";
+
+        [JsonProperty("Matrix.Help.Issue.Movie")]
+        public string MatrixHelpMovieIssue { get; set; } = "report a video, audio or subtitle problem with a movie in the library";
+
+        [JsonProperty("Matrix.Help.Issue.Tv")]
+        public string MatrixHelpTvShowIssue { get; set; } = "report a video, audio or subtitle problem with a tv show in the library";
+
+        [JsonProperty("Matrix.Help.Help")]
+        public string MatrixHelpHelp { get; set; } = "show this message";
+
+        [JsonProperty("Matrix.Help.Cancel")]
+        public string MatrixHelpCancel { get; set; } = "stop the question I am asking you";
+
+        [JsonProperty("Matrix.Help.Ping")]
+        public string MatrixHelpPing { get; set; } = "check that I am online";
+
+        [JsonProperty("Matrix.Help.Examples")]
+        public string MatrixHelpExamples { get; set; } = "Examples: [Examples]";
+
+        [JsonProperty("Matrix.Help.Access.All")]
+        public string MatrixHelpAccessAll { get; set; } = "In this room you can request [Allowed].";
+
+        [JsonProperty("Matrix.Help.Access.Some")]
+        public string MatrixHelpAccessSome { get; set; } = "In this room you can request [Allowed]. You cannot request [Denied]; ask a room admin for access.";
+
+        [JsonProperty("Matrix.Help.Access.None")]
+        public string MatrixHelpAccessNone { get; set; } = "In this room you cannot request [Denied]. Ask a room admin for access. You can still report problems.";
+
+        [JsonProperty("Matrix.Help.Access.Movies")]
+        public string MatrixHelpAccessMovies { get; set; } = "movies";
+
+        [JsonProperty("Matrix.Help.Access.TvShows")]
+        public string MatrixHelpAccessTvShows { get; set; } = "tv shows";
+
+        [JsonProperty("Matrix.Help.Access.Music")]
+        public string MatrixHelpAccessMusic { get; set; } = "music";
+
+        [JsonProperty("Matrix.Help.And")]
+        public string MatrixHelpAnd { get; set; } = "and";
 
         [JsonProperty("Matrix.Selection.Prompt")]
         public string MatrixSelectionPrompt { get; set; } = "Tap a number below or reply with a number from 1 to [Count]. Tap ❌ or reply `cancel` to stop.";

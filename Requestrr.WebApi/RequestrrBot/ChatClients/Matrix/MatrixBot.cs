@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -676,7 +677,7 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
             if (name == Language.Current.DiscordCommandHelpRequestName?.ToLowerInvariant() || name == "help")
             {
                 context.EndConversation();
-                await context.SendAsync(BuildHelpMessage(context));
+                await context.SendAsync(await BuildHelpMessageAsync(context));
                 return;
             }
 
@@ -874,26 +875,133 @@ namespace Requestrr.WebApi.RequestrrBot.ChatClients.Matrix
                     description => submit(type.Value.ToString(), description)))).ToArray());
         }
 
-        private MatrixMessage BuildHelpMessage(MatrixCommandContext context)
+        private async Task<MatrixMessage> BuildHelpMessageAsync(MatrixCommandContext context)
         {
             var prefix = _settings.CommandPrefix;
-            var commandList = _commands.Commands.Select(x => "• " + x.Usage(prefix))
-                .Append($"• `{prefix}help`")
-                .Append($"• `{prefix}cancel`");
+            var language = Language.Current;
+            var sections = new List<string>();
 
-            var text = Language.Current.MatrixHelpMessage
+            void AddSection(string heading, IEnumerable<string> lines)
+            {
+                var list = lines.ToList();
+                if (list.Any())
+                {
+                    sections.Add($"**{heading}**\n" + string.Join("\n", list));
+                }
+            }
+
+            string Describe(MatrixCommand command, string description, int sameKindCount)
+            {
+                var line = $"• {command.Usage(prefix)}: {description}";
+                return sameKindCount > 1 ? line + " " + language.MatrixHelpCategoryNote.Replace("[Category]", command.Name) : line;
+            }
+
+            IEnumerable<string> Lines(MatrixCommandKind kind, string description)
+            {
+                var commands = _commands.Commands.Where(x => x.Kind == kind).ToList();
+                return commands.Select(x => Describe(x, description, commands.Count));
+            }
+
+            AddSection(language.MatrixHelpSectionMovies, Lines(MatrixCommandKind.MovieByTitle, language.MatrixHelpMovieByTitle)
+                .Concat(Lines(MatrixCommandKind.MovieByTmdbId, language.MatrixHelpMovieByTmdbId)));
+            AddSection(language.MatrixHelpSectionTvShows, Lines(MatrixCommandKind.TvShowByTitle, language.MatrixHelpTvShowByTitle)
+                .Concat(Lines(MatrixCommandKind.TvShowByTvdbId, language.MatrixHelpTvShowByTvdbId)));
+            AddSection(language.MatrixHelpSectionMusic, Lines(MatrixCommandKind.MusicArtist, language.MatrixHelpMusicArtist));
+            AddSection(language.MatrixHelpSectionIssues, Lines(MatrixCommandKind.MovieIssue, language.MatrixHelpMovieIssue)
+                .Concat(Lines(MatrixCommandKind.TvShowIssue, language.MatrixHelpTvShowIssue)));
+            AddSection(language.MatrixHelpSectionOther, new[]
+            {
+                $"• `{prefix}help`: {language.MatrixHelpHelp}",
+                $"• `{prefix}cancel`: {language.MatrixHelpCancel}",
+                $"• `{prefix}ping`: {language.MatrixHelpPing}",
+            });
+
+            if (!_commands.Commands.Any())
+            {
+                sections.Insert(0, language.MatrixNoRequestCommands);
+            }
+
+            var examples = new List<string>();
+            void AddExample(MatrixCommandKind kind, string example)
+            {
+                var command = _commands.Commands.FirstOrDefault(x => x.Kind == kind);
+                if (command != null) examples.Add($"`{prefix}{command.Name} {example}`");
+            }
+
+            AddExample(MatrixCommandKind.MovieByTitle, "Dune");
+            AddExample(MatrixCommandKind.TvShowByTitle, "The Bear");
+            AddExample(MatrixCommandKind.MusicArtist, "Daft Punk");
+
+            var text = language.MatrixHelpMessage
                 .Replace(LanguageTokens.AuthorUsername, context.DisplayName)
                 .Replace(LanguageTokens.BotUsername, _botDisplayName ?? _botUserId)
                 .Replace(LanguageTokens.CommandPrefix, prefix)
                 .Replace(LanguageTokens.MovieCommandTitle, prefix + _commands.FirstMovieCommandName())
-                .Replace(LanguageTokens.FullCommandList, string.Join("\n", commandList));
+                .Replace(LanguageTokens.FullCommandList, string.Join("\n\n", sections))
+                .Replace("[Access]", await BuildAccessLineAsync(context))
+                .Replace("[Examples]", examples.Any() ? language.MatrixHelpExamples.Replace("[Examples]", string.Join(", ", examples)) : string.Empty);
 
-            if (!_commands.Commands.Any())
+            return MatrixMessage.FromMarkdown(Regex.Replace(text, "\n{3,}", "\n\n").Trim());
+        }
+
+        /// <summary>
+        /// Tells the caller which request types the room's power-level limits allow for them.
+        /// </summary>
+        private async Task<string> BuildAccessLineAsync(MatrixCommandContext context)
+        {
+            var settings = _matrixSettingsProvider.Provide();
+            var kinds = new List<(string Name, int[] Levels)>();
+
+            if (_commands.Commands.Any(x => x.Kind == MatrixCommandKind.MovieByTitle || x.Kind == MatrixCommandKind.MovieByTmdbId))
+                kinds.Add((Language.Current.MatrixHelpAccessMovies, settings.MovieRequestLevels));
+            if (_commands.Commands.Any(x => x.Kind == MatrixCommandKind.TvShowByTitle || x.Kind == MatrixCommandKind.TvShowByTvdbId))
+                kinds.Add((Language.Current.MatrixHelpAccessTvShows, settings.TvShowRequestLevels));
+            if (_commands.Commands.Any(x => x.Kind == MatrixCommandKind.MusicArtist))
+                kinds.Add((Language.Current.MatrixHelpAccessMusic, settings.MusicRequestLevels));
+
+            if (!kinds.Any())
             {
-                text += "\n\n" + Language.Current.MatrixNoRequestCommands;
+                return string.Empty;
             }
 
-            return MatrixMessage.FromMarkdown(text);
+            var powerLevel = 0;
+            if (kinds.Any(x => x.Levels != null && x.Levels.Any()))
+            {
+                try
+                {
+                    powerLevel = await _client.GetPowerLevelAsync(context.RoomId, context.UserId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"Could not read the power level of {context.UserId} in {context.RoomId}: {ex.Message}");
+                }
+            }
+
+            bool Allowed(int[] levels) => levels == null || !levels.Any() || powerLevel >= MatrixSettings.AlwaysAllowedRequestLevel || levels.Contains(powerLevel);
+
+            var allowed = kinds.Where(x => Allowed(x.Levels)).Select(x => x.Name).ToList();
+            var denied = kinds.Where(x => !Allowed(x.Levels)).Select(x => x.Name).ToList();
+
+            if (!denied.Any())
+            {
+                return Language.Current.MatrixHelpAccessAll.Replace("[Allowed]", JoinWords(allowed));
+            }
+
+            if (!allowed.Any())
+            {
+                return Language.Current.MatrixHelpAccessNone.Replace("[Denied]", JoinWords(denied));
+            }
+
+            return Language.Current.MatrixHelpAccessSome
+                .Replace("[Allowed]", JoinWords(allowed))
+                .Replace("[Denied]", JoinWords(denied));
+        }
+
+        private static string JoinWords(IReadOnlyList<string> words)
+        {
+            return words.Count <= 1
+                ? string.Join(string.Empty, words)
+                : string.Join(", ", words.Take(words.Count - 1)) + " " + Language.Current.MatrixHelpAnd + " " + words.Last();
         }
 
         private async Task WithTypingAsync(MatrixCommandContext context, Func<Task> work)
